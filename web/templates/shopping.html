@@ -1,0 +1,158 @@
+{{define "content"}}
+<div x-data="shoppingApp()" x-init="init()" x-cloak>
+    <div class="card bg-base-100 shadow-sm mb-4 rounded-2xl">
+        <div class="card-body p-4 gap-4">
+            <div class="flex items-center gap-1">
+                <button class="btn btn-ghost tap" @click="shift(-1)" title="上一周" aria-label="上一周">
+                    <span class="text-2xl leading-none">‹</span>
+                </button>
+                <div class="flex-1 text-center font-bold text-base" x-text="week"></div>
+                <button class="btn btn-ghost tap" @click="shift(1)" title="下一周" aria-label="下一周">
+                    <span class="text-2xl leading-none">›</span>
+                </button>
+            </div>
+            <select class="select w-full" x-model="week" @change="load()" x-show="weeks.length > 0">
+                <template x-for="w in weeks" :key="w">
+                    <option :value="w" x-text="'已排过的周：' + w"></option>
+                </template>
+            </select>
+            <button class="btn btn-outline w-full" @click="copyText()">复制成文本</button>
+            <button class="btn btn-ghost w-full" @click="clearChecked()">清空勾选</button>
+            <div class="text-base font-semibold" x-show="total > 0">
+                已买 <span class="text-primary" x-text="bought"></span> / <span x-text="total"></span>
+            </div>
+            <div x-show="msg" class="alert alert-info text-sm py-3" x-text="msg"></div>
+        </div>
+    </div>
+
+    <template x-for="g in groups" :key="g.cat">
+        <div class="card bg-base-100 shadow-sm mb-4 rounded-2xl">
+            <div class="card-body p-4 gap-1">
+                <div class="font-bold text-lg mb-1 flex items-center gap-2">
+                    <span class="app-emoji" x-text="catEmoji(g.cat)"></span>
+                    <span x-text="g.cat"></span>
+                </div>
+                <template x-for="item in g.items" :key="item.name">
+                    <label class="label cursor-pointer justify-start gap-3 py-2"
+                           :class="isChecked(g.cat, item.name) ? 'line-through opacity-50' : ''">
+                        <input type="checkbox" class="checkbox checkbox-lg checkbox-primary"
+                               :checked="isChecked(g.cat, item.name)"
+                               @change="toggle(g.cat, item.name)">
+                        <span class="flex-1 text-base" x-text="item.name"></span>
+                        <span class="text-sm text-base-content/50" x-text="item.qty"></span>
+                    </label>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <div x-show="groups.length === 0" class="card bg-base-100 shadow-sm rounded-2xl">
+        <div class="card-body items-center text-center py-12">
+            <p class="text-base text-base-content/60">这一周还没有菜单，先去菜单页生成一份</p>
+            <a href="/menu" class="btn btn-primary mt-3">去生成</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* 分类配个图标，扫一眼就知道往超市哪个区走 */
+    var CAT_EMOJI = {
+        '肉蛋': '🥩', '水产': '🐟', '蔬菜': '🥬', '豆制品': '🧈',
+        '米面': '🍚', '调料': '🧂', '其他': '🛒'
+    };
+
+    function catEmoji(cat) { return CAT_EMOJI[cat] || '🛒'; }
+
+    function shoppingApp() {
+        return {
+            week: '',
+            weeks: [],
+            groups: [],
+            checked: {},
+            msg: '',
+            saveTimer: null,
+
+            get total() {
+                return this.groups.reduce(function (n, g) { return n + g.items.length; }, 0);
+            },
+            get bought() {
+                var self = this;
+                var n = 0;
+                this.groups.forEach(function (g) {
+                    g.items.forEach(function (i) {
+                        if (self.isChecked(g.cat, i.name)) n++;
+                    });
+                });
+                return n;
+            },
+
+            async init() {
+                var q = new URLSearchParams(location.search).get('week');
+                this.week = q || '';
+                await this.load();
+            },
+
+            async load() {
+                this.msg = '';
+                this.groups = [];
+                try {
+                    var data = await api('/api/shopping' + (this.week ? '?week=' + this.week : ''));
+                    this.week = data.week;
+                    this.groups = data.groups || [];
+                    this.checked = data.checked || {};
+                    var menu = await api('/api/menu?week=' + this.week);
+                    this.weeks = menu.weeks || [];
+                } catch (e) {
+                    this.msg = e.message;
+                }
+            },
+
+            async shift(n) {
+                var d = new Date(this.week + 'T00:00:00');
+                d.setDate(d.getDate() + 7 * n);
+                this.week = d.toISOString().slice(0, 10);
+                history.replaceState(null, '', '/shopping?week=' + this.week);
+                await this.load();
+            },
+
+            key(cat, name) { return cat + '|' + name; },
+            isChecked(cat, name) { return !!this.checked[this.key(cat, name)]; },
+
+            toggle(cat, name) {
+                var k = this.key(cat, name);
+                if (this.checked[k]) delete this.checked[k]; else this.checked[k] = true;
+                // 勾选是高频操作，攒一下再写库，避免每点一次都发请求
+                clearTimeout(this.saveTimer);
+                var self = this;
+                this.saveTimer = setTimeout(function () { self.save(); }, 400);
+            },
+
+            async save() {
+                try {
+                    await put('/api/shopping/checked', { week: this.week, checked: this.checked });
+                } catch (e) { toast(e.message, 'error'); }
+            },
+
+            async clearChecked() {
+                this.checked = {};
+                await this.save();
+            },
+
+            async copyText() {
+                var lines = this.groups.map(function (g) {
+                    return g.cat + '：' + g.items.map(function (i) {
+                        return i.name + (i.qty ? ' ' + i.qty : '');
+                    }).join('、');
+                });
+                var text = '采购清单（' + this.week + ' 那一周）\n' + lines.join('\n');
+                try {
+                    await navigator.clipboard.writeText(text);
+                    toast('已复制，可以直接发微信');
+                } catch (e) {
+                    toast('浏览器不让复制，手动选中吧', 'error');
+                }
+            }
+        };
+    }
+</script>
+{{end}}

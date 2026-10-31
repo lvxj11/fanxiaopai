@@ -1,0 +1,21 @@
+# 防止本地运行产物、数据和密钥被 COPY 进镜像
+.git
+.github
+.gitignore
+.env
+.env.*
+.idea
+.vscode
+node_modules
+
+# 运行时数据与日志
+data/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# 本地编译产物
+fanxiaopai
+fanxiaopai-*
+dist/

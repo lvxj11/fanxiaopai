@@ -1,0 +1,107 @@
+/* Tailwind CSS + daisyUI 编译入口
+ *
+ * 用法：npm run build:css，产物写入 web/static/app.css 并提交。
+ * 页面只加载这份静态 CSS，不引入任何运行时编译器和 CDN。
+ */
+
+@import "tailwindcss";
+
+@plugin "daisyui" {
+  themes: light --default, dark;
+}
+
+/* 做饭的应用用暖色：主色取南瓜橙，辅助色取番茄红，深色底偏暖灰 */
+@plugin "daisyui/theme" {
+  name: "light";
+  --color-primary: oklch(62% 0.17 48);
+  --color-primary-content: oklch(98% 0.02 48);
+  --color-accent: oklch(58% 0.16 22);
+  --color-accent-content: oklch(98% 0.02 22);
+}
+
+@plugin "daisyui/theme" {
+  name: "dark";
+  --color-base-100: oklch(19% 0.015 40);
+  --color-base-200: oklch(23% 0.014 40);
+  --color-base-300: oklch(27% 0.013 40);
+  --color-primary: oklch(74% 0.16 48);
+  --color-primary-content: oklch(20% 0.05 48);
+  --color-accent: oklch(70% 0.14 22);
+  --color-accent-content: oklch(20% 0.05 22);
+}
+
+/* dark: 变体跟随 data-theme（主题切换脚本写入），而不是 prefers-color-scheme */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* 类名来源是 Go 模板，需要显式指定扫描范围 */
+@source "../templates/**/*.html";
+
+/* 移动优先：手机上字号放大一档，正文行距放宽，桌面回到常规字号 */
+@layer base {
+  html {
+    font-size: 17px;
+    -webkit-text-size-adjust: 100%;
+    /* 桌面端常驻滚动条槽位：滚动条一直可见，不会只有悬浮时才冒出来 */
+    scrollbar-gutter: stable;
+  }
+  body {
+    line-height: 1.6;
+  }
+}
+
+@media (min-width: 768px) {
+  html { font-size: 16px; }
+}
+
+/* 触屏优先：图标按钮至少 44px 高，手指点得准 */
+.tap {
+  min-height: 2.75rem;
+  min-width: 2.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+/* 一行里并排好几个图标按钮时用窄版，给菜名留出位置 */
+.tap-icon {
+  min-height: 2.75rem;
+  min-width: 2.25rem;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+/* emoji 图标统一放大一档，和放大后的正文匹配 */
+.app-emoji {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+/* 内容列：手机上占满屏宽，桌面收窄居中，避免卡片拉成一条显得笨重。
+   顶栏只约束内部内容，背景条仍然通栏；底栏整条一起收窄居中。
+   宽度跟着屏幕分档放开，好让每天的卡片在桌面排成 2～3 列。 */
+.app-shell {
+  width: 100%;
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+@media (min-width: 1024px) {
+  .app-shell { max-width: 60rem; }
+}
+
+@media (min-width: 1280px) {
+  .app-shell { max-width: 72rem; }
+}
+
+.app-footer {
+  padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* 底部导航固定在视口底部，页脚留出它的高度，否则最后一天会被挡住 */
+.app-main {
+  padding-bottom: 1rem;
+}
+
+/* 被拉黑的菜在菜库里整行淡化，一眼能看出来不会再被排进来 */
+.dish-blocked {
+  opacity: 0.45;
+}

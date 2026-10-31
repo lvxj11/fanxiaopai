@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 连续推送时自动取消被后续提交取代的旧运行，不会堆积出多余的运行
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          # go.mod 只写主次版本（1.27），这里自动取该版本线下的最新补丁版，
+          # 后续补丁发布无需手动改任何文件
+          check-latest: true
+          cache: true
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "以下文件未执行 gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        env:
+          CGO_ENABLED: 0
+        run: go build ./...
+
+  # 样式是预编译后提交的，改了模板却忘了重新编译会让页面缺样式，
+  # 这里重新编译一次并比对产物，不一致就说明漏了 npm run build:css
+  css:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@v6.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build CSS and check it is committed
+        run: |
+          npm run build:css
+          if [ -n "$(git status --porcelain web/static/app.css)" ]; then
+            echo "web/static/app.css 与模板不同步，请在本地执行 npm run build:css 后提交"
+            git diff --stat web/static/app.css
+            exit 1
+          fi

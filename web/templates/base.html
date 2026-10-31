@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>{{.Title}} - 饭小排</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- 样式与脚本全部本地提供，不依赖 CDN，断网也能正常显示 -->
+    <link href="/static/app.css" rel="stylesheet" type="text/css" />
+    <script>
+        /* 必须在 <head> 里同步执行：赶在首次绘制前定好主题，否则会闪一下浅色 */
+        (function () {
+            var KEY = 'menu-theme';
+            var root = document.documentElement;
+            var mq = window.matchMedia('(prefers-color-scheme: dark)');
+
+            function stored() {
+                try {
+                    var t = localStorage.getItem(KEY);
+                    return t === 'light' || t === 'dark' ? t : null;
+                } catch (e) { return null; }
+            }
+            function apply(t) {
+                root.dataset.theme = t;
+                root.style.colorScheme = t;
+            }
+
+            apply(stored() || (mq.matches ? 'dark' : 'light'));
+            mq.addEventListener('change', function (e) {
+                if (!stored()) apply(e.matches ? 'dark' : 'light');
+            });
+            window.__toggleTheme = function () {
+                var next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+                apply(next);
+                try { localStorage.setItem(KEY, next); } catch (e) {}
+                return next;
+            };
+
+            /* 所有页面共用的请求封装：非 2xx 直接抛出后端给的中文提示 */
+            window.api = async function (path, options) {
+                var res = await fetch(path, Object.assign({
+                    headers: { 'Content-Type': 'application/json' }
+                }, options || {}));
+                var data = await res.json().catch(function () { return {}; });
+                if (!res.ok) throw new Error(data.error || ('请求失败（' + res.status + '）'));
+                return data;
+            };
+            window.post = function (path, body) {
+                return api(path, { method: 'POST', body: JSON.stringify(body || {}) });
+            };
+            window.put = function (path, body) {
+                return api(path, { method: 'PUT', body: JSON.stringify(body || {}) });
+            };
+        })();
+    </script>
+    <script defer src="/static/alpine.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen">
+    <div class="bg-base-100 shadow-sm sticky top-0 z-20">
+        <div class="navbar app-shell px-3 min-h-16">
+            <div class="navbar-start">
+                <span class="text-xl font-bold text-primary flex items-baseline gap-2">
+                    <span class="app-emoji">🍚</span>饭小排
+                    <span class="text-xs font-normal text-base-content/50">家常饭排班表</span>
+                </span>
+            </div>
+            <div class="navbar-end gap-1">
+                <button class="btn btn-ghost tap" onclick="__toggleTheme()" title="切换深浅色" aria-label="切换深浅色">
+                    <span class="app-emoji">🌓</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <main class="app-main app-shell px-3 py-4">
+        {{template "content" .}}
+    </main>
+
+    <!-- 手机优先：底部导航常驻，四个页面一键切换 -->
+    <div class="dock bg-base-100 border-t border-base-300 z-20 app-shell">
+        <a href="/menu" class="{{if eq .CurrentPage "menu"}}dock-active{{end}}">
+            <span class="text-2xl">📅</span>
+            <span class="dock-label text-sm">菜单</span>
+        </a>
+        <a href="/dishes" class="{{if eq .CurrentPage "dishes"}}dock-active{{end}}">
+            <span class="text-2xl">🥘</span>
+            <span class="dock-label text-sm">菜库</span>
+        </a>
+        <a href="/shopping" class="{{if eq .CurrentPage "shopping"}}dock-active{{end}}">
+            <span class="text-2xl">🛒</span>
+            <span class="dock-label text-sm">采购</span>
+        </a>
+        <a href="/settings" class="{{if eq .CurrentPage "settings"}}dock-active{{end}}">
+            <span class="text-2xl">⚙️</span>
+            <span class="dock-label text-sm">设置</span>
+        </a>
+    </div>
+
+    <!-- 统一的轻提示，各页面调用 toast() 即可 -->
+    <div id="toast" class="toast toast-end z-50 hidden">
+        <div id="toast-body" class="alert alert-success"></div>
+    </div>
+    <script>
+        var toastTimer = null;
+        window.toast = function (msg, kind) {
+            var box = document.getElementById('toast');
+            var body = document.getElementById('toast-body');
+            body.textContent = msg;
+            body.className = 'alert ' + (kind === 'error' ? 'alert-error' : 'alert-success');
+            box.classList.remove('hidden');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(function () { box.classList.add('hidden'); }, 2200);
+        };
+    </script>
+
+    <footer class="app-footer app-shell text-center text-sm text-base-content/40 py-2">
+        饭小排 · 家常饭排班表 v{{.Version}}
+    </footer>
+</body>
+</html>

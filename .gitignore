@@ -1,0 +1,13 @@
+# 运行时数据与日志
+data/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# 编译产物
+fanxiaopai
+fanxiaopai-*
+
+# 前端依赖（只在改样式时需要 npm install，产物 app.css 是提交的）
+node_modules/

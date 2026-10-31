@@ -1,0 +1,13 @@
+{
+  "name": "fanxiaopai",
+  "private": true,
+  "description": "仅用于把 Tailwind CSS + daisyUI 预编译成静态 CSS，运行时不需要 Node",
+  "scripts": {
+    "build:css": "tailwindcss -i web/css/input.css -o web/static/app.css --minify"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "daisyui": "^5.7.50",
+    "tailwindcss": "^4.3.3"
+  }
+}

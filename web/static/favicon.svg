@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- 碗 -->
+  <path d="M6 30h52a26 26 0 0 1-52 0z" fill="#f97316"/>
+  <!-- 米饭 -->
+  <path d="M12 30a20 20 0 0 1 40 0z" fill="#fef3c7"/>
+  <!-- 筷子 -->
+  <line x1="38" y1="6" x2="24" y2="26" stroke="#7c2d12" stroke-width="3" stroke-linecap="round"/>
+  <line x1="46" y1="8" x2="32" y2="28" stroke="#7c2d12" stroke-width="3" stroke-linecap="round"/>
+  <!-- 底座 -->
+  <rect x="20" y="54" width="24" height="4" rx="2" fill="#f97316"/>
+</svg>

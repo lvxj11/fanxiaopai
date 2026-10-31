@@ -1,0 +1,146 @@
+{{define "content"}}
+<div x-data="settingsApp()" x-init="init()" x-cloak>
+    <!-- 每天排哪些餐 -->
+    <div class="card bg-base-100 shadow-sm mb-4 rounded-2xl">
+        <div class="card-body p-4 gap-3">
+            <h2 class="font-bold text-lg flex items-center gap-2">
+                <span class="app-emoji">📅</span>每天排哪些餐
+            </h2>
+            <p class="text-sm text-base-content/50">默认工作日早晚、周末三餐。改完重新生成菜单才会生效。</p>
+            <template x-for="day in days">
+                <div class="flex items-center gap-2 py-2 border-b border-base-200 last:border-0">
+                    <span class="w-14 text-base font-semibold" x-text="day.label"></span>
+                    <div class="flex gap-4 flex-1">
+                        <template x-for="s in slots">
+                            <label class="label cursor-pointer gap-2 py-2">
+                                <input type="checkbox" class="checkbox checkbox-lg checkbox-primary"
+                                       :checked="hasSlot(day.index, s.value)" @change="toggleSlot(day.index, s.value)">
+                                <span class="text-base" x-text="s.label"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+            </template>
+            <button class="btn btn-primary w-full mt-2" @click="saveMealSlots()">保存</button>
+        </div>
+    </div>
+
+    <!-- 忌口 -->
+    <div class="card bg-base-100 shadow-sm mb-4 rounded-2xl">
+        <div class="card-body p-4 gap-3">
+            <h2 class="font-bold text-lg flex items-center gap-2">
+                <span class="app-emoji">🚫</span>忌口 / 过敏
+            </h2>
+            <p class="text-sm text-base-content/50">带这些标签的菜一律不排进菜单。</p>
+            <div class="flex flex-wrap gap-2">
+                <template x-for="t in allTags">
+                    <button class="btn tap" :class="isAvoided(t) ? 'btn-error' : 'btn-outline'"
+                            @click="toggleAvoid(t)" x-text="t"></button>
+                </template>
+                <span x-show="allTags.length === 0" class="text-sm text-base-content/50">菜库里还没有带标签的菜</span>
+            </div>
+            <button class="btn btn-primary w-full mt-2" @click="saveAvoidTags()">保存</button>
+        </div>
+    </div>
+
+    <!-- 内置菜品 -->
+    <div class="card bg-base-100 shadow-sm mb-4 rounded-2xl">
+        <div class="card-body p-4 gap-3">
+            <h2 class="font-bold text-lg flex items-center gap-2">
+                <span class="app-emoji">🥘</span>内置菜品
+            </h2>
+            <p class="text-sm text-base-content/50">
+                删掉的内置菜不会因为重启自己回来。想找回来就点这里，只会补你库里没有的，不会覆盖你改过的菜。
+            </p>
+            <button class="btn btn-outline w-full" @click="restoreSeed()">补回内置菜品</button>
+        </div>
+    </div>
+
+    <!-- AI 换新鲜：接口已预留，v1 未接入 -->
+    <div class="card bg-base-100 shadow-sm mb-4 rounded-2xl">
+        <div class="card-body p-4 gap-3">
+            <h2 class="font-bold text-lg flex items-center gap-2">
+                <span class="app-emoji">✨</span>AI 换新鲜
+            </h2>
+            <div class="alert alert-info text-sm py-3">
+                <span>暂未接入 AI 服务，接口已经预留好了，接上模型后这里就能一键换菜库里没有的新菜。</span>
+            </div>
+            <button class="btn w-full" disabled>换新鲜（未接入）</button>
+        </div>
+    </div>
+
+    <div x-show="msg" class="alert alert-success text-sm py-3" x-text="msg"></div>
+</div>
+
+<script>
+    function settingsApp() {
+        return {
+            days: [
+                { index: 0, label: '周一' }, { index: 1, label: '周二' }, { index: 2, label: '周三' },
+                { index: 3, label: '周四' }, { index: 4, label: '周五' }, { index: 5, label: '周六' },
+                { index: 6, label: '周日' }
+            ],
+            slots: [
+                { value: 'breakfast', label: '早餐' },
+                { value: 'lunch', label: '午餐' },
+                { value: 'dinner', label: '晚餐' }
+            ],
+            mealSlots: {},
+            allTags: [],
+            avoidTags: [],
+            msg: '',
+
+            async init() {
+                var slots = await api('/api/settings/meal-slots');
+                this.mealSlots = slots.meal_slots || {};
+                var tags = await api('/api/settings/avoid-tags');
+                this.avoidTags = tags.avoid_tags || [];
+                var dishes = await api('/api/dishes');
+                this.allTags = dishes.tags || [];
+            },
+
+            hasSlot(day, slot) {
+                var list = this.mealSlots[String(day)] || [];
+                return list.indexOf(slot) >= 0;
+            },
+
+            toggleSlot(day, slot) {
+                var key = String(day);
+                var list = (this.mealSlots[key] || []).slice();
+                var i = list.indexOf(slot);
+                if (i >= 0) list.splice(i, 1); else list.push(slot);
+                this.mealSlots[key] = list;
+            },
+
+            async saveMealSlots() {
+                try {
+                    var data = await put('/api/settings/meal-slots', { meal_slots: this.mealSlots });
+                    this.mealSlots = data.meal_slots;
+                    toast('已保存');
+                } catch (e) { toast(e.message, 'error'); }
+            },
+
+            isAvoided(tag) { return this.avoidTags.indexOf(tag) >= 0; },
+            toggleAvoid(tag) {
+                var i = this.avoidTags.indexOf(tag);
+                if (i >= 0) this.avoidTags.splice(i, 1); else this.avoidTags.push(tag);
+            },
+
+            async saveAvoidTags() {
+                try {
+                    var data = await put('/api/settings/avoid-tags', { avoid_tags: this.avoidTags });
+                    this.avoidTags = data.avoid_tags || [];
+                    toast('已保存');
+                } catch (e) { toast(e.message, 'error'); }
+            },
+
+            async restoreSeed() {
+                try {
+                    var data = await post('/api/dishes/restore-seed');
+                    toast(data.added > 0 ? '补回了 ' + data.added + ' 道菜' : '内置菜都在，没有需要补的');
+                } catch (e) { toast(e.message, 'error'); }
+            }
+        };
+    }
+</script>
+{{end}}

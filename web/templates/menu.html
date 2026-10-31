@@ -1,0 +1,266 @@
+{{define "content"}}
+<div x-data="menuApp()" x-init="init()" x-cloak>
+    <!-- 周切换 + 生成 -->
+    <div class="card bg-base-100 shadow-sm mb-4 rounded-2xl">
+        <div class="card-body p-4 gap-4">
+            <div class="flex items-center gap-1">
+                <button class="btn btn-ghost tap" @click="shift(-1)" title="上一周" aria-label="上一周">
+                    <span class="text-2xl leading-none">‹</span>
+                </button>
+                <div class="flex-1 text-center font-bold text-base" x-text="rangeLabel"></div>
+                <button class="btn btn-ghost tap" @click="shift(1)" title="下一周" aria-label="下一周">
+                    <span class="text-2xl leading-none">›</span>
+                </button>
+            </div>
+
+            <select class="select w-full" x-model="week" @change="load()" x-show="weeks.length > 0">
+                <template x-for="w in weeks" :key="w">
+                    <option :value="w" x-text="'已排过的周：' + w"></option>
+                </template>
+            </select>
+
+            <div class="flex gap-2">
+                <button class="btn btn-primary flex-1" :disabled="busy" @click="generate(false)">
+                    <span x-show="busy" class="loading loading-spinner loading-sm"></span>
+                    <span x-text="menu && menu.items.length ? '重新生成' : '生成本周'"></span>
+                </button>
+            </div>
+            <button class="btn btn-outline w-full" :disabled="busy || !(menu && menu.items.length)"
+                    @click="generate(true)" title="只重排没锁定的格子">保留锁定重排</button>
+
+            <div x-show="warnings.length" class="alert alert-warning text-sm py-3">
+                <span>
+                    菜库有点不够，这次放宽了：
+                    <template x-for="w in warnings"><span x-text="w + '；'"></span></template>
+                </span>
+            </div>
+            <div x-show="msg" class="alert alert-error text-sm py-3" x-text="msg"></div>
+        </div>
+    </div>
+
+    <!-- 七天：手机单列，≥640px 两列，≥1280px 三列 -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+    <template x-for="day in days" :key="day.index">
+        <div class="card bg-base-100 shadow-sm rounded-2xl">
+            <div class="card-body p-4 gap-1">
+                <div class="flex items-baseline justify-between mb-1">
+                    <span class="font-bold text-xl" x-text="day.label"></span>
+                    <span class="text-sm text-base-content/50" x-text="day.date"></span>
+                </div>
+
+                <template x-for="slot in (mealSlots[day.index] || [])" :key="slot">
+                    <div class="pt-2">
+                        <div class="text-sm font-semibold text-base-content/60 mb-1" x-text="slotLabel(slot)"></div>
+                        <template x-for="item in itemsOf(day.index, slot)" :key="item.id">
+                            <div class="flex items-center gap-2 py-2 border-b border-base-200 last:border-0">
+                                <div class="flex-1 min-w-0">
+                                    <button class="text-left text-lg font-semibold truncate block w-full hover:text-primary"
+                                            @click="openPicker(item)" x-text="item.dish ? item.dish.name : '（空）'"></button>
+                                    <div class="flex flex-wrap gap-1 mt-1">
+                                        <span class="badge badge-sm" x-text="item.dish ? item.dish.main_ingredient : ''"></span>
+                                        <span class="badge badge-sm badge-ghost" x-text="item.dish ? item.dish.time_cost + ' 分钟' : ''"></span>
+                                        <span class="badge badge-sm badge-outline" x-show="item.dish && item.dish.green">绿叶菜</span>
+                                    </div>
+                                </div>
+                                <div class="flex gap-0.5 shrink-0">
+                                    <button class="btn btn-ghost tap-icon" @click="reroll(item)" title="换一道" aria-label="换一道">
+                                        <span class="app-emoji">↻</span>
+                                    </button>
+                                    <button class="btn btn-ghost tap-icon" @click="toggleLock(item)"
+                                            :title="item.locked ? '已锁定，重排时不动' : '锁定这一格'">
+                                        <span class="app-emoji" x-text="item.locked ? '🔒' : '🔓'"></span>
+                                    </button>
+                                    <button class="btn btn-ghost tap-icon" @click="rate(item, 2)" title="爱吃" aria-label="爱吃">
+                                        <span class="app-emoji">👍</span>
+                                    </button>
+                                    <button class="btn btn-ghost tap-icon" @click="rate(item, 0)" title="不吃，拉黑" aria-label="不吃，拉黑">
+                                        <span class="app-emoji">👎</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+    </div>
+
+    <div x-show="menu && menu.items.length === 0" class="card bg-base-100 shadow-sm rounded-2xl mt-4">
+        <div class="card-body items-center text-center py-12">
+            <p class="text-base text-base-content/60">这一周还没有菜单</p>
+            <button class="btn btn-primary mt-3" @click="generate(false)">生成一份</button>
+        </div>
+    </div>
+
+    <!-- 换成指定的菜 -->
+    <!-- modal-open 不能写死：daisyUI 用 :root:has(.modal.modal-open) 给 html 加 overflow:hidden，
+         哪怕这里是 display:none 也会锁住整页滚动，所以跟着开关状态动态加 -->
+    <div x-show="picker.open" class="modal" :class="picker.open ? 'modal-open' : ''" @click.self="picker.open = false">
+        <div class="modal-box max-h-[85vh] rounded-2xl">
+            <h3 class="font-bold text-lg mb-3">换成哪道菜？</h3>
+            <input type="text" class="input w-full mb-2" placeholder="搜菜名或食材"
+                   x-model="picker.query" @input="loadPickerDishes()">
+            <div class="overflow-y-auto max-h-[50vh]">
+                <template x-for="d in picker.dishes" :key="d.id">
+                    <button class="w-full text-left px-3 py-3 hover:bg-base-200 rounded-xl flex justify-between gap-2"
+                            @click="pickDish(d)">
+                        <span class="text-base" x-text="d.name"></span>
+                        <span class="text-sm text-base-content/50" x-text="d.kind + ' · ' + d.time_cost + ' 分钟'"></span>
+                    </button>
+                </template>
+                <p x-show="picker.dishes.length === 0" class="text-sm text-base-content/50 py-6">没找到，去菜库里加一道吧</p>
+            </div>
+            <div class="modal-action">
+                <button class="btn btn-outline" @click="picker.open = false">取消</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var DAY_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+    function menuApp() {
+        return {
+            week: '',
+            weeks: [],
+            menu: null,
+            mealSlots: {},
+            busy: false,
+            msg: '',
+            warnings: [],
+            picker: { open: false, dishes: [], query: '', item: null },
+
+            get days() {
+                var self = this;
+                return DAY_NAMES.map(function (name, i) {
+                    return { index: i, label: name, date: self.dateOf(i) };
+                });
+            },
+            get rangeLabel() {
+                if (!this.week) return '';
+                return this.week + ' 那一周';
+            },
+
+            async init() {
+                var q = new URLSearchParams(location.search).get('week');
+                this.week = q || '';
+                await this.load();
+            },
+
+            async load() {
+                this.msg = '';
+                try {
+                    var data = await api('/api/menu' + (this.week ? '?week=' + this.week : ''));
+                    this.week = data.week;
+                    this.menu = data.menu || { items: [] };
+                    this.weeks = data.weeks || [];
+                    this.mealSlots = data.meal_slots || {};
+                } catch (e) {
+                    this.msg = e.message;
+                }
+            },
+
+            async generate(keepLocked) {
+                if (!confirm(keepLocked ? '只重排没锁定的格子，确定？' : '会覆盖这一周已有的菜单，确定？')) return;
+                this.busy = true;
+                this.msg = '';
+                try {
+                    var data = await post('/api/menu/generate', { week: this.week, keep_locked: keepLocked });
+                    this.menu = data.menu || { items: [] };
+                    this.weeks = data.weeks || [];
+                    this.warnings = data.warnings || [];
+                    toast('菜单已生成');
+                } catch (e) {
+                    this.msg = e.message;
+                } finally {
+                    this.busy = false;
+                }
+            },
+
+            async shift(n) {
+                var d = new Date(this.week + 'T00:00:00');
+                d.setDate(d.getDate() + 7 * n);
+                this.week = d.toISOString().slice(0, 10);
+                history.replaceState(null, '', '/menu?week=' + this.week);
+                await this.load();
+            },
+
+            itemsOf(day, slot) {
+                if (!this.menu) return [];
+                return this.menu.items.filter(function (it) {
+                    return it.day_index === day && it.slot === slot;
+                });
+            },
+
+            async reroll(item) {
+                try {
+                    var data = await post('/api/menu/item/reroll', {
+                        week: this.week, day_index: item.day_index, slot: item.slot, seq: item.seq
+                    });
+                    this.menu = data.menu;
+                    this.warnings = data.warnings || [];
+                } catch (e) { toast(e.message, 'error'); }
+            },
+
+            async toggleLock(item) {
+                try {
+                    var data = await post('/api/menu/item/lock', {
+                        week: this.week, day_index: item.day_index, slot: item.slot,
+                        seq: item.seq, locked: !item.locked
+                    });
+                    this.menu = data.menu;
+                } catch (e) { toast(e.message, 'error'); }
+            },
+
+            async rate(item, rating) {
+                if (!item.dish) return;
+                try {
+                    await post('/api/dishes/' + item.dish_id + '/feedback', { rating: rating });
+                    toast(rating === 0 ? '已拉黑，以后不再排这道菜' : '记下了，下次多排点');
+                } catch (e) { toast(e.message, 'error'); }
+            },
+
+            openPicker(item) {
+                this.picker.item = item;
+                this.picker.open = true;
+                this.picker.query = '';
+                this.loadPickerDishes();
+            },
+
+            async loadPickerDishes() {
+                var slot = this.picker.item ? this.picker.item.slot : '';
+                var data = await api('/api/dishes?q=' + encodeURIComponent(this.picker.query));
+                var keyword = this.picker.query;
+                this.picker.dishes = data.dishes.filter(function (d) {
+                    return d.blocked ? false : d.slots.indexOf(slot) >= 0;
+                });
+            },
+
+            async pickDish(dish) {
+                var item = this.picker.item;
+                this.picker.open = false;
+                try {
+                    var data = await put('/api/menu/item/replace', {
+                        week: this.week, day_index: item.day_index, slot: item.slot,
+                        seq: item.seq, dish_id: dish.id
+                    });
+                    this.menu = data.menu;
+                } catch (e) { toast(e.message, 'error'); }
+            },
+
+            dateOf(dayIndex) {
+                if (!this.week) return '';
+                var d = new Date(this.week + 'T00:00:00');
+                d.setDate(d.getDate() + dayIndex);
+                return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+            },
+
+            slotLabel(slot) {
+                return { breakfast: '早餐', lunch: '午餐', dinner: '晚餐' }[slot] || slot;
+            }
+        };
+    }
+</script>
+{{end}}

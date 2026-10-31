@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  fanxiaopai:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data  # 数据库和日志都在这里，备份只要拷这个目录
+    user: "1000:1000"  # 与容器内 appuser 保持一致，避免数据目录权限问题
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped

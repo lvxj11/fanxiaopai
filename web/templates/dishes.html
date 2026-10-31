@@ -1,0 +1,254 @@
+{{define "content"}}
+<div x-data="dishesApp()" x-init="init()" x-cloak>
+    <!-- 筛选 -->
+    <div class="card bg-base-100 shadow-sm mb-4 rounded-2xl">
+        <div class="card-body p-4 gap-4">
+            <div class="flex gap-2">
+                <input type="text" class="input flex-1" placeholder="搜菜名或食材"
+                       x-model="filter.q" @input.debounce.300ms="load()">
+                <button class="btn btn-primary" @click="openEditor(null)">＋ 加菜</button>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button class="btn" :class="filter.kind === '' ? 'btn-primary' : 'btn-ghost'" @click="setKind('')">全部</button>
+                <template x-for="k in kinds">
+                    <button class="btn" :class="filter.kind === k ? 'btn-primary' : 'btn-ghost'"
+                            @click="setKind(k)" x-text="k"></button>
+                </template>
+            </div>
+            <label class="label cursor-pointer justify-start gap-2 py-1">
+                <input type="checkbox" class="checkbox checkbox-md" x-model="filter.blocked" @change="load()">
+                <span class="text-sm">显示被拉黑的菜（<span x-text="blockedCount"></span>）</span>
+            </label>
+        </div>
+    </div>
+
+    <div class="text-sm text-base-content/50 mb-2 px-1" x-text="'共 ' + dishes.length + ' 道菜'"></div>
+
+    <!-- 平铺全部，长表滚动 -->
+    <div class="card bg-base-100 shadow-sm rounded-2xl">
+        <template x-for="d in dishes" :key="d.id">
+            <div class="px-4 py-4 border-b border-base-200 last:border-0" :class="d.blocked ? 'dish-blocked' : ''">
+                <div class="font-semibold text-lg" x-text="d.name"></div>
+                <div class="flex flex-wrap gap-1 mt-1">
+                    <span class="badge badge-sm" x-text="d.main_ingredient"></span>
+                    <span class="badge badge-sm badge-ghost" x-text="d.kind"></span>
+                    <span class="badge badge-sm badge-outline" x-text="d.time_cost + ' 分钟'"></span>
+                    <span class="badge badge-sm badge-outline" x-show="d.green">绿叶菜</span>
+                    <template x-for="t in d.tags"><span class="badge badge-sm badge-warning" x-text="t"></span></template>
+                </div>
+                <div class="text-sm text-base-content/50 mt-1" x-text="summary(d)"></div>
+                <div class="flex gap-1 mt-2 justify-end">
+                    <button class="btn btn-ghost tap text-sm" @click="openEditor(d)">
+                        <span class="app-emoji">✏️</span>编辑
+                    </button>
+                    <button class="btn btn-ghost tap text-sm" @click="toggleBlocked(d)">
+                        <span class="app-emoji" x-text="d.blocked ? '↺' : '🚫'"></span>
+                        <span x-text="d.blocked ? '恢复' : '拉黑'"></span>
+                    </button>
+                    <button class="btn btn-ghost tap text-sm text-error" @click="remove(d)">
+                        <span class="app-emoji">🗑️</span>删除
+                    </button>
+                </div>
+            </div>
+        </template>
+        <div x-show="dishes.length === 0" class="p-10 text-center text-base text-base-content/50">
+            没有符合条件的菜
+        </div>
+    </div>
+
+    <!-- 新增 / 编辑 -->
+    <!-- modal-open 不能写死：daisyUI 用 :root:has(.modal.modal-open) 给 html 加 overflow:hidden，
+         哪怕这里是 display:none 也会锁住整页滚动，所以跟着开关状态动态加 -->
+    <div x-show="editor.open" class="modal" :class="editor.open ? 'modal-open' : ''" @click.self="editor.open = false">
+        <div class="modal-box max-h-[85vh] overflow-y-auto rounded-2xl">
+            <h3 class="font-bold text-lg mb-3" x-text="editor.dish.id ? '编辑菜品' : '新增菜品'"></h3>
+
+            <fieldset class="fieldset w-full mb-3">
+                <legend class="fieldset-legend text-sm">菜名</legend>
+                <input type="text" class="input w-full" x-model="editor.dish.name">
+            </fieldset>
+
+            <div class="flex gap-2 mb-3">
+                <fieldset class="fieldset flex-1">
+                    <legend class="fieldset-legend text-sm">主料</legend>
+                    <select class="select w-full" x-model="editor.dish.main_ingredient">
+                        <template x-for="m in mains"><option :value="m" x-text="m"></option></template>
+                    </select>
+                </fieldset>
+                <fieldset class="fieldset flex-1">
+                    <legend class="fieldset-legend text-sm">类型</legend>
+                    <select class="select w-full" x-model="editor.dish.kind">
+                        <template x-for="k in kinds"><option :value="k" x-text="k"></option></template>
+                    </select>
+                </fieldset>
+                <fieldset class="fieldset w-28">
+                    <legend class="fieldset-legend text-sm">耗时(分)</legend>
+                    <input type="number" class="input w-full" x-model="editor.dish.time_cost">
+                </fieldset>
+            </div>
+
+            <div class="mb-3">
+                <span class="text-sm font-medium">能出现在哪些餐次</span>
+                <div class="flex gap-4 mt-1">
+                    <template x-for="s in slots">
+                        <label class="label cursor-pointer gap-2 py-2">
+                            <input type="checkbox" class="checkbox checkbox-md checkbox-primary"
+                                   :checked="editor.dish.slots.includes(s.value)"
+                                   @change="toggleSlot(s.value)">
+                            <span class="text-base" x-text="s.label"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+
+            <div class="flex gap-6 mb-3">
+                <label class="label cursor-pointer gap-2 py-2">
+                    <input type="checkbox" class="checkbox checkbox-md checkbox-primary" x-model="editor.dish.green">
+                    <span class="text-base">是绿叶菜</span>
+                </label>
+                <label class="label cursor-pointer gap-2 py-2">
+                    <input type="checkbox" class="checkbox checkbox-md checkbox-primary" x-model="editor.dish.can_pack">
+                    <span class="text-base">可以带饭</span>
+                </label>
+            </div>
+
+            <fieldset class="fieldset w-full mb-3">
+                <legend class="fieldset-legend text-sm">忌口标签（逗号分隔，如：辛辣,花生）</legend>
+                <input type="text" class="input w-full" x-model="editor.tagsText">
+            </fieldset>
+
+            <fieldset class="fieldset w-full mb-4">
+                <legend class="fieldset-legend text-sm">食材：每行一条，格式「名称,分类,数量」</legend>
+                <textarea class="textarea text-base h-32 w-full" x-model="editor.ingredientsText"
+                          placeholder="鸡胸肉,肉蛋,300g&#10;西兰花,蔬菜,1个"></textarea>
+                <span class="text-sm text-base-content/50">分类可用：肉蛋 / 水产 / 蔬菜 / 豆制品 / 米面 / 调料 / 其他</span>
+            </fieldset>
+
+            <div x-show="editor.msg" class="alert alert-error text-sm py-3 mb-2" x-text="editor.msg"></div>
+
+            <div class="modal-action">
+                <button class="btn btn-outline" @click="editor.open = false">取消</button>
+                <button class="btn btn-primary" @click="save()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function dishesApp() {
+        return {
+            dishes: [],
+            blockedCount: 0,
+            filter: { q: '', kind: '', blocked: false },
+            kinds: ['荤菜', '素菜', '汤', '主食', '快手'],
+            mains: ['鸡', '猪', '牛', '鱼', '虾', '蛋', '豆腐', '素'],
+            slots: [
+                { value: 'breakfast', label: '早餐' },
+                { value: 'lunch', label: '午餐' },
+                { value: 'dinner', label: '晚餐' }
+            ],
+            editor: { open: false, dish: {}, tagsText: '', ingredientsText: '', msg: '' },
+
+            async init() { await this.load(); },
+
+            async load() {
+                var params = new URLSearchParams();
+                if (this.filter.q) params.set('q', this.filter.q);
+                if (this.filter.kind) params.set('kind', this.filter.kind);
+                if (this.filter.blocked) params.set('blocked', '1');
+                var data = await api('/api/dishes?' + params.toString());
+                this.dishes = data.dishes || [];
+                if (this.filter.blocked) {
+                    this.blockedCount = this.dishes.filter(function (d) { return d.blocked; }).length;
+                } else {
+                    var all = await api('/api/dishes?blocked=1');
+                    this.blockedCount = (all.dishes || []).filter(function (d) { return d.blocked; }).length;
+                }
+            },
+
+            setKind(k) { this.filter.kind = k; this.load(); },
+
+            summary(d) {
+                var parts = (d.ingredients || []).map(function (i) { return i.name; });
+                var text = parts.length ? parts.join('、') : '没填食材';
+                if (d.last_made) text += ' · 最近 ' + d.last_made + ' 做过';
+                return text;
+            },
+
+            openEditor(dish) {
+                var base = dish || {
+                    id: 0, name: '', main_ingredient: '素', kind: '荤菜',
+                    slots: ['dinner'], time_cost: 20, green: false, can_pack: false,
+                    tags: [], ingredients: []
+                };
+                this.editor.dish = JSON.parse(JSON.stringify(base));
+                this.editor.tagsText = (this.editor.dish.tags || []).join(',');
+                this.editor.ingredientsText = (this.editor.dish.ingredients || []).map(function (i) {
+                    return i.name + ',' + i.cat + ',' + (i.qty || '');
+                }).join('\n');
+                this.editor.msg = '';
+                this.editor.open = true;
+            },
+
+            toggleSlot(value) {
+                var slots = this.editor.dish.slots || [];
+                var i = slots.indexOf(value);
+                if (i >= 0) slots.splice(i, 1); else slots.push(value);
+                this.editor.dish.slots = slots;
+            },
+
+            parseIngredients(text) {
+                return text.split('\n').map(function (line) { return line.trim(); })
+                    .filter(function (line) { return line.length > 0; })
+                    .map(function (line) {
+                        var parts = line.split(',');
+                        return {
+                            name: (parts[0] || '').trim(),
+                            cat: (parts[1] || '其他').trim() || '其他',
+                            qty: (parts[2] || '').trim()
+                        };
+                    });
+            },
+
+            async save() {
+                this.editor.msg = '';
+                var dish = this.editor.dish;
+                dish.tags = this.editor.tagsText.split(/[,，]/).map(function (s) { return s.trim(); })
+                    .filter(function (s) { return s.length > 0; });
+                dish.ingredients = this.parseIngredients(this.editor.ingredientsText);
+                dish.time_cost = parseInt(dish.time_cost, 10) || 0;
+
+                try {
+                    if (dish.id) {
+                        await put('/api/dishes/' + dish.id, dish);
+                    } else {
+                        await post('/api/dishes', dish);
+                    }
+                    this.editor.open = false;
+                    toast('已保存');
+                    await this.load();
+                } catch (e) {
+                    this.editor.msg = e.message;
+                }
+            },
+
+            async toggleBlocked(d) {
+                try {
+                    await post('/api/dishes/' + d.id + '/blocked', { blocked: !d.blocked });
+                    toast(d.blocked ? '已恢复' : '已拉黑，以后不再排这道菜');
+                    await this.load();
+                } catch (e) { toast(e.message, 'error'); }
+            },
+
+            async remove(d) {
+                if (!confirm('删除「' + d.name + '」？菜单里用到它的格子也会一起清掉')) return;
+                try {
+                    await api('/api/dishes/' + d.id, { method: 'DELETE' });
+                    toast('已删除');
+                    await this.load();
+                } catch (e) { toast(e.message, 'error'); }
+            }
+        };
+    }
+</script>
+{{end}}
