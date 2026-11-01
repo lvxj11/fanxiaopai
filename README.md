@@ -10,18 +10,21 @@
 ## 快速开始
 
 ```bash
-go build -o fanxiaopai .
-./fanxiaopai
+go build -o dist/fanxiaopai .
+cd dist && ./fanxiaopai
 # 浏览器打开 http://localhost:8080
 ```
 
-首次启动会在 `./data/` 下生成 `config.ini` 和 SQLite 数据库，并导入内置菜品。
+首次启动会在**当前工作目录**下生成 `data/config.ini` 和 SQLite 数据库，并导入内置菜品。
+所以要在 `dist/` 里运行：这样 `dist/data/` 承接运行时文件，根目录只留源码。
 
 用 Docker：
 
 ```bash
-docker compose up -d   # 数据落在 ./data/
+docker compose up -d   # 容器内 WORKDIR 是 /app，数据落在挂载的 ./data/
 ```
+
+> Docker 不受上面的 `dist/` 约定影响：镜像里固定用 `/app/data`，由 `docker-compose.yml` 挂到宿主的 `./data/`。
 
 ## 配置
 

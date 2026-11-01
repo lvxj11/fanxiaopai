@@ -5,6 +5,9 @@ data/
 *.db-shm
 *.log
 
+# 本地构建产物与运行时数据：go build -o dist/fanxiaopai . && cd dist && ./fanxiaopai
+dist/
+
 # 编译产物
 fanxiaopai
 fanxiaopai-*
