@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<!--
+  离线快照：样式和数据全部内联，没有任何外部引用，也没有一行 JS。
+  存到手机上（或存进微信收藏）后断网也能打开，不需要连家里的服务器。
+-->
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.RangeLabel}} 的菜单与采购清单 - 饭小排</title>
+    <style>{{.CSS}}</style>
+    <style>
+        /* 快照自己补的零星样式：勾选后的删除线纯靠 CSS，不依赖 JS */
+        .snap-check input:checked ~ .snap-name {
+            text-decoration: line-through;
+            opacity: .5;
+        }
+
+        @media print {
+            .card { break-inside: avoid; box-shadow: none; border: 1px solid #ddd; }
+            .snap-tip { display: none; }
+        }
+    </style>
+</head>
+<body class="bg-base-200">
+<div class="app-shell p-4 pb-8">
+
+    <div class="card bg-base-100 shadow-sm mb-4 rounded-2xl">
+        <div class="card-body p-4 gap-2">
+            <h1 class="font-bold text-xl">饭小排 · 离线快照</h1>
+            <div class="text-base" >{{.RangeLabel}}</div>
+            <p class="text-sm text-base-content/60 snap-tip">
+                这一页已经是自包含的：断网也能看。手机上用浏览器菜单里的「另存」或「下载页面」把它存下来即可。
+                采购清单可以现场勾选打钩，仅本次打开有效，不会写回服务器。
+            </p>
+        </div>
+    </div>
+
+    {{if .HasMenu}}
+
+    <h2 class="font-bold text-lg px-1 mb-2">一周菜单</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+        {{range .Days}}
+        <div class="card bg-base-100 shadow-sm rounded-2xl">
+            <div class="card-body p-4 gap-1">
+                <div class="flex items-baseline justify-between mb-1">
+                    <span class="font-bold text-xl">{{.Label}}</span>
+                    <span class="text-sm text-base-content/50">{{.Date}}</span>
+                </div>
+                {{range .Slots}}
+                <div class="pt-2">
+                    <div class="text-sm font-semibold text-base-content/60 mb-1">{{.Label}}</div>
+                    {{range .Items}}
+                    <div class="flex items-center gap-2 py-2 border-b border-base-200 last:border-0">
+                        <div class="flex-1 min-w-0">
+                            {{if .Dish}}
+                            <div class="text-lg font-semibold truncate">{{.Dish.Name}}</div>
+                            <div class="flex flex-wrap gap-1 mt-1">
+                                <span class="badge badge-sm">{{.Dish.MainIngredient}}</span>
+                                <span class="badge badge-sm badge-ghost">{{.Dish.TimeCost}} 分钟</span>
+                                {{if .Dish.Green}}<span class="badge badge-sm badge-outline">绿叶菜</span>{{end}}
+                            </div>
+                            {{else}}
+                            <div class="text-lg font-semibold text-base-content/40">（空）</div>
+                            {{end}}
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+                {{end}}
+            </div>
+        </div>
+        {{end}}
+    </div>
+
+    <h2 class="font-bold text-lg px-1 mt-6 mb-2">采购清单{{if .Total}}（共 {{.Total}} 样）{{end}}</h2>
+    {{range .Groups}}
+    <div class="card bg-base-100 shadow-sm mb-4 rounded-2xl">
+        <div class="card-body p-4 gap-1">
+            <div class="font-bold text-lg mb-1 flex items-center gap-2">
+                <span class="app-emoji">{{.Emoji}}</span>
+                <span>{{.Cat}}</span>
+            </div>
+            {{range .Items}}
+            <label class="label cursor-pointer justify-start gap-3 py-2 snap-check">
+                {{if .Checked}}
+                <input type="checkbox" class="checkbox checkbox-lg checkbox-primary" checked>
+                {{else}}
+                <input type="checkbox" class="checkbox checkbox-lg checkbox-primary">
+                {{end}}
+                <span class="flex-1 text-base snap-name">{{.Name}}</span>
+                <span class="text-sm text-base-content/50">{{.Qty}}</span>
+            </label>
+            {{end}}
+        </div>
+    </div>
+    {{end}}
+
+    {{else}}
+
+    <div class="card bg-base-100 shadow-sm rounded-2xl">
+        <div class="card-body items-center text-center py-12">
+            <p class="text-base text-base-content/60">{{.RangeLabel}} 还没有菜单</p>
+            <p class="text-sm text-base-content/50 mt-2">联网打开菜单页，生成一份之后再回来导出</p>
+        </div>
+    </div>
+
+    {{end}}
+
+    <footer class="text-center text-sm text-base-content/40 py-4">
+        饭小排 v{{.Version}} · {{.Week}} 导出
+    </footer>
+</div>
+</body>
+</html>

@@ -18,6 +18,8 @@
             </select>
             <button class="btn btn-outline w-full" @click="copyText()">复制成文本</button>
             <button class="btn btn-ghost w-full" @click="clearChecked()">清空勾选</button>
+            <a class="btn btn-ghost w-full" target="_blank" rel="noopener"
+               :href="'/export?week=' + week" title="导出一份断网也能看的快照">导出离线快照</a>
             <div class="text-base font-semibold" x-show="total > 0">
                 已买 <span class="text-primary" x-text="bought"></span> / <span x-text="total"></span>
             </div>
@@ -62,6 +64,29 @@
     };
 
     function catEmoji(cat) { return CAT_EMOJI[cat] || '🛒'; }
+
+    /* http://内网IP 不是 secure context，navigator.clipboard 在那里直接不存在，
+       必须回退到 textarea + execCommand，否则这个按钮在局域网用法下一直是坏的。
+       将来上了 HTTPS，isSecureContext 为真，自动走原生那条路。 */
+    function copyToClipboard(text) {
+        if (navigator.clipboard && isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        }
+        return new Promise(function (resolve, reject) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            ta.setSelectionRange(0, text.length);
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            document.body.removeChild(ta);
+            if (ok) resolve(); else reject(new Error('浏览器不让复制'));
+        });
+    }
 
     function shoppingApp() {
         return {
@@ -146,7 +171,7 @@
                 });
                 var text = '采购清单（' + this.week + ' 那一周）\n' + lines.join('\n');
                 try {
-                    await navigator.clipboard.writeText(text);
+                    await copyToClipboard(text);
                     toast('已复制，可以直接发微信');
                 } catch (e) {
                     toast('浏览器不让复制，手动选中吧', 'error');

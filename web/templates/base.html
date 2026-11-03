@@ -57,6 +57,11 @@
     <style>
         [x-cloak] { display: none !important; }
     </style>
+    <!-- 装到主屏幕用的声明文件：只管「像 app」，离线能力由 Service Worker 提供 -->
+    <link rel="manifest" href="/static/manifest.webmanifest" />
+    <meta name="theme-color" content="#d8722f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="饭小排" />
 </head>
 <body class="bg-base-200 min-h-screen">
     <div class="bg-base-100 shadow-sm sticky top-0 z-20">
@@ -103,6 +108,16 @@
     <div id="toast" class="toast toast-end z-50 hidden">
         <div id="toast-body" class="alert alert-success"></div>
     </div>
+    <script>
+        /* 离线缓存只有 HTTPS（或 localhost）下才注册：局域网 http://内网IP 不是
+           secure context，浏览器压根没有 serviceWorker，这里静默跳过。
+           等你用公网域名把反代配好，离线功能自动生效，不用再改代码。 */
+        if (isSecureContext && 'serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('/static/sw.js').catch(function () {});
+            });
+        }
+    </script>
     <script>
         var toastTimer = null;
         window.toast = function (msg, kind) {

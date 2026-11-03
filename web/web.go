@@ -74,9 +74,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/ai/suggest", s.apiAISuggest)
 	mux.HandleFunc("/api/health", s.apiHealth)
 	mux.HandleFunc("/favicon.svg", s.serveFavicon)
+	mux.HandleFunc("/export", s.exportSnapshot)
 
 	// 静态资源全部编译进二进制，随程序分发，断网也能显示
-	mux.Handle("/static/", http.FileServer(http.FS(staticFiles)))
+	mux.Handle("/static/", s.serveStatic())
 
 	return gzipMiddleware(mux)
 }
@@ -144,6 +145,25 @@ func (s *Server) renderPage(w http.ResponseWriter, title, currentPage, contentTe
 	if err := tmpl.Execute(w, data); err != nil {
 		utils.GetLogger().Error("渲染页面失败: %v\n", err)
 	}
+}
+
+// serveStatic 静态资源，Service Worker 单独加一个响应头
+func (s *Server) serveStatic() http.Handler {
+	files := http.FileServer(http.FS(staticFiles))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// sw.js 放在 /static/ 下，默认 scope 只有 /static/，管不到 /menu。
+		// 要靠这个头把 scope 提到根，否则离线缓存对页面无效
+		if r.URL.Path == "/static/sw.js" {
+			w.Header().Set("Service-Worker-Allowed", "/")
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		// FileServer 不认 .webmanifest 这个扩展名，会按 text/plain 发，浏览器不认
+		if r.URL.Path == "/static/manifest.webmanifest" {
+			w.Header().Set("Content-Type", "application/manifest+json")
+		}
+		files.ServeHTTP(w, r)
+	})
 }
 
 // serveFavicon 返回站点图标

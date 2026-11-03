@@ -27,6 +27,8 @@
             </div>
             <button class="btn btn-outline w-full" :disabled="busy || !(menu && menu.items.length)"
                     @click="generate(true)" title="只重排没锁定的格子">保留锁定重排</button>
+            <a class="btn btn-ghost w-full" target="_blank" rel="noopener"
+               :href="'/export?week=' + week" title="导出一份断网也能看的快照">导出离线快照</a>
 
             <div x-show="warnings.length" class="alert alert-warning text-sm py-3">
                 <span>
