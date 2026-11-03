@@ -5,13 +5,16 @@
  *
  * 改了 web/static/app.css 之后把下面的 CACHE 版本号 +1，否则用户看到的还是旧样式。
  */
-var CACHE = 'fanxiaopai-v1';
+var CACHE = 'fanxiaopai-v2';
 var SHELL = [
   '/menu',
   '/shopping',
   '/static/app.css',
   '/static/alpine.min.js',
-  '/static/manifest.webmanifest'
+  '/static/manifest.webmanifest',
+  '/static/icon-180.png',
+  '/static/icon-192.png',
+  '/static/icon-512.png'
 ];
 
 self.addEventListener('install', function (event) {

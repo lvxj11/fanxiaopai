@@ -97,6 +97,14 @@ npm install
 npm run build:css
 ```
 
+改图标同理，`static/icon-*.png` 是从 `favicon.svg` 渲染出来的产物，也要提交：
+
+```bash
+rsvg-convert -w 180 -h 180 -b white -o web/static/icon-180.png web/static/favicon.svg
+rsvg-convert -w 192 -h 192 -b white -o web/static/icon-192.png web/static/favicon.svg
+rsvg-convert -w 512 -h 512 -b white -o web/static/icon-512.png web/static/favicon.svg
+```
+
 ## AI 换新鲜
 
 `generator.Generator` 和 `ai.Provider` 是两个预留的接口：目前只有本地加权随机一个实现，`ai.NoopProvider` 表示未接入。接真实模型时新增一个实现即可，调用方和页面都不用改。
