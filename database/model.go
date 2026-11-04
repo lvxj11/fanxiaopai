@@ -50,6 +50,8 @@ type Dish struct {
 	Source         string       `json:"source"`
 	CreatedAt      string       `json:"created_at"`
 	LastMade       string       `json:"last_made,omitempty"`
+	Recipe         string       `json:"recipe"`
+	Prep           string       `json:"prep"`
 }
 
 // MenuItem 菜单里的一格（某天某餐的第 seq 道菜）

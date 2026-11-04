@@ -13,20 +13,34 @@
                 </button>
             </div>
 
+            <!-- 浏览 / 编辑双状态：浏览态点菜名看做法，编辑态才露出换菜、锁定。
+                 不持久化，刷新默认回浏览态，免得忘了退出。 -->
+            <div class="flex items-center justify-between gap-2 pb-1 border-b border-base-200">
+                <span class="text-sm text-base-content/60">点菜名看做法</span>
+                <label class="label cursor-pointer gap-2 py-1 shrink-0">
+                    <span class="text-sm" :class="!editing ? 'font-semibold text-primary' : ''">浏览</span>
+                    <input type="checkbox" class="toggle toggle-primary" x-model="editing">
+                    <span class="text-sm" :class="editing ? 'font-semibold text-primary' : ''">编辑</span>
+                </label>
+            </div>
+
             <select class="select w-full" x-model="week" @change="load()" x-show="weeks.length > 0">
                 <template x-for="w in weeks" :key="w">
                     <option :value="w" x-text="'已排过的周：' + w"></option>
                 </template>
             </select>
 
-            <div class="flex gap-2">
-                <button class="btn btn-primary flex-1" :disabled="busy" @click="generate(false)">
-                    <span x-show="busy" class="loading loading-spinner loading-sm"></span>
-                    <span x-text="menu && menu.items.length ? '重新生成' : '生成本周'"></span>
-                </button>
+            <!-- 生成/重排会改菜单，只在编辑态露出；浏览态保持只读 -->
+            <div x-show="editing" class="flex flex-col gap-2">
+                <div class="flex gap-2">
+                    <button class="btn btn-primary flex-1" :disabled="busy" @click="generate(false)">
+                        <span x-show="busy" class="loading loading-spinner loading-sm"></span>
+                        <span x-text="menu && menu.items.length ? '重新生成' : '生成本周'"></span>
+                    </button>
+                </div>
+                <button class="btn btn-outline w-full" :disabled="busy || !(menu && menu.items.length)"
+                        @click="generate(true)" title="只重排没锁定的格子">保留锁定重排</button>
             </div>
-            <button class="btn btn-outline w-full" :disabled="busy || !(menu && menu.items.length)"
-                    @click="generate(true)" title="只重排没锁定的格子">保留锁定重排</button>
             <a class="btn btn-ghost w-full" target="_blank" rel="noopener"
                :href="'/export?week=' + week" title="导出一份断网也能看的快照">导出离线快照</a>
 
@@ -57,21 +71,28 @@
                             <div class="flex items-center gap-2 py-2 border-b border-base-200 last:border-0">
                                 <div class="flex-1 min-w-0">
                                     <button class="text-left text-lg font-semibold truncate block w-full hover:text-primary"
-                                            @click="openPicker(item)" x-text="item.dish ? item.dish.name : '（空）'"></button>
-                                    <div class="flex flex-wrap gap-1 mt-1">
+                                            @click="openRecipe(item)" x-text="item.dish ? item.dish.name : '（空）'"></button>
+                                    <div class="flex flex-wrap gap-1 mt-1 items-center">
                                         <span class="badge badge-sm" x-text="item.dish ? item.dish.main_ingredient : ''"></span>
                                         <span class="badge badge-sm badge-ghost" x-text="item.dish ? item.dish.time_cost + ' 分钟' : ''"></span>
                                         <span class="badge badge-sm badge-outline" x-show="item.dish && item.dish.green">绿叶菜</span>
+                                        <!-- 浏览态：锁定的格子只读标一下，重排时才不会困惑 -->
+                                        <span class="badge badge-sm badge-warning gap-1" x-show="!editing && item.locked">
+                                            <span class="app-emoji">🔒</span>已锁定
+                                        </span>
+                                    </div>
+                                    <!-- 编辑态：独占一行，大按钮好点；浏览态整行收起 -->
+                                    <div x-show="editing" class="flex gap-2 mt-2">
+                                        <button class="btn btn-outline flex-1 tap text-sm" @click="reroll(item)">
+                                            <span class="app-emoji">↻</span>随机换
+                                        </button>
+                                        <button class="btn btn-outline flex-1 tap text-sm" @click="openPicker(item)">指定换</button>
+                                        <button class="btn btn-outline flex-1 tap text-sm" @click="toggleLock(item)"
+                                                x-text="item.locked ? '🔓 解锁' : '🔒 锁定'"></button>
                                     </div>
                                 </div>
+                                <!-- 打分两态都在：吃完顺手点，与是否编辑无关 -->
                                 <div class="flex gap-0.5 shrink-0">
-                                    <button class="btn btn-ghost tap-icon" @click="reroll(item)" title="换一道" aria-label="换一道">
-                                        <span class="app-emoji">↻</span>
-                                    </button>
-                                    <button class="btn btn-ghost tap-icon" @click="toggleLock(item)"
-                                            :title="item.locked ? '已锁定，重排时不动' : '锁定这一格'">
-                                        <span class="app-emoji" x-text="item.locked ? '🔒' : '🔓'"></span>
-                                    </button>
                                     <button class="btn btn-ghost tap-icon" @click="rate(item, 2)" title="爱吃" aria-label="爱吃">
                                         <span class="app-emoji">👍</span>
                                     </button>
@@ -118,6 +139,34 @@
             </div>
         </div>
     </div>
+
+    <!-- 看备料与做法。与 picker 保持两个独立 modal，内容异构不硬凑；
+         modal-open 同样动态挂，避免 daisyUI 的 :root:has(.modal.modal-open) 锁死整页滚动 -->
+    <div x-show="recipe.open" class="modal" :class="recipe.open ? 'modal-open' : ''" @click.self="recipe.open = false">
+        <div class="modal-box max-h-[85vh] overflow-y-auto rounded-2xl">
+            <h3 class="font-bold text-lg mb-3" x-text="recipe.name"></h3>
+
+            <div class="mb-4">
+                <div class="font-semibold text-sm text-base-content/60 mb-1">备料</div>
+                <div x-show="recipe.prep" class="text-base whitespace-pre-line" x-text="recipe.prep"></div>
+                <p x-show="!recipe.prep" class="text-sm text-base-content/50">还没记备料</p>
+            </div>
+
+            <div class="mb-2">
+                <div class="font-semibold text-sm text-base-content/60 mb-1">做法</div>
+                <div x-show="recipe.text" class="text-base whitespace-pre-line" x-text="recipe.text"></div>
+                <p x-show="!recipe.text" class="text-sm text-base-content/50">这道菜还没记做法</p>
+            </div>
+
+            <!-- 任一项为空就引导去菜库补，链接只放一处 -->
+            <a x-show="!recipe.prep || !recipe.text" class="btn btn-outline btn-sm mt-2"
+               :href="'/dishes?edit=' + recipe.dishId">去菜库补充备料 / 做法</a>
+
+            <div class="modal-action">
+                <button class="btn btn-outline" @click="recipe.open = false">关闭</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -132,6 +181,8 @@
             busy: false,
             msg: '',
             warnings: [],
+            editing: false,
+            recipe: { open: false, name: '', text: '', prep: '', dishId: 0 },
             picker: { open: false, dishes: [], query: '', item: null },
 
             get days() {
@@ -222,6 +273,16 @@
                     await post('/api/dishes/' + item.dish_id + '/feedback', { rating: rating });
                     toast(rating === 0 ? '已拉黑，以后不再排这道菜' : '记下了，下次多排点');
                 } catch (e) { toast(e.message, 'error'); }
+            },
+
+            openRecipe(item) {
+                var dish = item.dish;
+                if (!dish) return;
+                this.recipe.name = dish.name;
+                this.recipe.text = dish.recipe || '';
+                this.recipe.prep = dish.prep || '';
+                this.recipe.dishId = dish.id;
+                this.recipe.open = true;
             },
 
             openPicker(item) {

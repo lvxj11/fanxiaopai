@@ -58,7 +58,9 @@ CREATE TABLE IF NOT EXISTS dishes (
     blocked         INTEGER NOT NULL DEFAULT 0,
     weight          REAL NOT NULL DEFAULT 1.0,
     source          TEXT NOT NULL DEFAULT 'seed',
-    created_at      TEXT NOT NULL DEFAULT ''
+    created_at      TEXT NOT NULL DEFAULT '',
+    recipe          TEXT NOT NULL DEFAULT '',
+    prep            TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS menus (
@@ -147,7 +149,7 @@ func marshalIngredients(v []Ingredient) string {
 // dishColumns 含最近做过日期的查询列。
 // day_index 是周内第几天（0=周一），配合 week_start 用 date() 算出实际日期
 const dishColumns = `d.id, d.name, d.main_ingredient, d.kind, d.slots, d.ingredients, d.tags,
-    d.time_cost, d.can_pack, d.green, d.blocked, d.weight, d.source, d.created_at,
+    d.time_cost, d.can_pack, d.green, d.blocked, d.weight, d.source, d.created_at, d.recipe, d.prep,
     (SELECT MAX(date(m.week_start, '+' || mi.day_index || ' days'))
        FROM menu_items mi JOIN menus m ON m.id = mi.menu_id
       WHERE mi.dish_id = d.id) AS last_made`
@@ -167,10 +169,13 @@ func scanDish(row dishScanner) (*Dish, error) {
 		blocked     int
 		source      sql.NullString
 		createdAt   sql.NullString
+		recipe      sql.NullString
+		prep        sql.NullString
 		lastMade    sql.NullString
 	)
 	if err := row.Scan(&d.ID, &d.Name, &d.MainIngredient, &d.Kind, &slots, &ingredients,
-		&tags, &d.TimeCost, &canPack, &green, &blocked, &d.Weight, &source, &createdAt, &lastMade); err != nil {
+		&tags, &d.TimeCost, &canPack, &green, &blocked, &d.Weight, &source, &createdAt,
+		&recipe, &prep, &lastMade); err != nil {
 		return nil, err
 	}
 	d.Slots = unmarshalList(slots)
@@ -181,6 +186,8 @@ func scanDish(row dishScanner) (*Dish, error) {
 	d.Blocked = blocked != 0
 	d.Source = source.String
 	d.CreatedAt = createdAt.String
+	d.Recipe = recipe.String
+	d.Prep = prep.String
 	d.LastMade = lastMade.String
 	return &d, nil
 }
@@ -251,11 +258,11 @@ func (d *Database) CreateDish(dish *Dish) error {
 		dish.Weight = 1.0
 	}
 	res, err := d.db.Exec(`INSERT INTO dishes
-        (name, main_ingredient, kind, slots, ingredients, tags, time_cost, can_pack, green, blocked, weight, source, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        (name, main_ingredient, kind, slots, ingredients, tags, time_cost, can_pack, green, blocked, weight, source, created_at, recipe, prep)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		dish.Name, dish.MainIngredient, dish.Kind, marshalList(dish.Slots), marshalIngredients(dish.Ingredients),
 		marshalList(dish.Tags), dish.TimeCost, boolToInt(dish.CanPack), boolToInt(dish.Green),
-		boolToInt(dish.Blocked), dish.Weight, dish.Source, dish.CreatedAt)
+		boolToInt(dish.Blocked), dish.Weight, dish.Source, dish.CreatedAt, dish.Recipe, dish.Prep)
 	if err != nil {
 		return err
 	}
@@ -266,9 +273,10 @@ func (d *Database) CreateDish(dish *Dish) error {
 // UpdateDish 更新菜品（不含 weight/blocked，那两个由反馈维护）
 func (d *Database) UpdateDish(dish *Dish) error {
 	_, err := d.db.Exec(`UPDATE dishes SET name=?, main_ingredient=?, kind=?, slots=?, ingredients=?,
-        tags=?, time_cost=?, can_pack=?, green=? WHERE id=?`,
+        tags=?, time_cost=?, can_pack=?, green=?, recipe=?, prep=? WHERE id=?`,
 		dish.Name, dish.MainIngredient, dish.Kind, marshalList(dish.Slots), marshalIngredients(dish.Ingredients),
-		marshalList(dish.Tags), dish.TimeCost, boolToInt(dish.CanPack), boolToInt(dish.Green), dish.ID)
+		marshalList(dish.Tags), dish.TimeCost, boolToInt(dish.CanPack), boolToInt(dish.Green),
+		dish.Recipe, dish.Prep, dish.ID)
 	return err
 }
 

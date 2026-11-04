@@ -117,11 +117,23 @@
                 <input type="text" class="input w-full" x-model="editor.tagsText">
             </fieldset>
 
-            <fieldset class="fieldset w-full mb-4">
+            <fieldset class="fieldset w-full mb-3">
                 <legend class="fieldset-legend text-sm">食材：每行一条，格式「名称,分类,数量」</legend>
                 <textarea class="textarea text-base h-32 w-full" x-model="editor.ingredientsText"
                           placeholder="鸡胸肉,肉蛋,300g&#10;西兰花,蔬菜,1个"></textarea>
                 <span class="text-sm text-base-content/50">分类可用：肉蛋 / 水产 / 蔬菜 / 豆制品 / 米面 / 调料 / 其他</span>
+            </fieldset>
+
+            <fieldset class="fieldset w-full mb-3">
+                <legend class="fieldset-legend text-sm">备料：每行一条，写开火前要准备的食材与处理</legend>
+                <textarea class="textarea text-base h-32 w-full" x-model="editor.dish.prep"
+                          placeholder="鸡胸肉 200g 切丁，加生抽、淀粉抓匀腌 10 分钟&#10;花生米 50g；干辣椒切段"></textarea>
+            </fieldset>
+
+            <fieldset class="fieldset w-full mb-4">
+                <legend class="fieldset-legend text-sm">做法：每行一步，菜单页点菜名时显示</legend>
+                <textarea class="textarea text-base h-32 w-full" x-model="editor.dish.recipe"
+                          placeholder="大米淘洗干净，加约 8 倍清水&#10;煮开后转小火熬 30 分钟"></textarea>
             </fieldset>
 
             <div x-show="editor.msg" class="alert alert-error text-sm py-3 mb-2" x-text="editor.msg"></div>
@@ -149,7 +161,19 @@
             ],
             editor: { open: false, dish: {}, tagsText: '', ingredientsText: '', msg: '' },
 
-            async init() { await this.load(); },
+            async init() {
+                await this.load();
+                // 做法弹窗的「去菜库补做法」带 ?edit=<id> 跳过来，直接打开编辑器
+                var editId = new URLSearchParams(location.search).get('edit');
+                if (!editId) return;
+                var dish = this.dishes.find(function (d) { return String(d.id) === editId; });
+                if (!dish) {
+                    // 被拉黑的菜不在默认列表里，再取一次含拉黑的全量
+                    var data = await api('/api/dishes?blocked=1');
+                    dish = (data.dishes || []).find(function (d) { return String(d.id) === editId; });
+                }
+                if (dish) this.openEditor(dish);
+            },
 
             async load() {
                 var params = new URLSearchParams();
@@ -179,7 +203,7 @@
                 var base = dish || {
                     id: 0, name: '', main_ingredient: '素', kind: '荤菜',
                     slots: ['dinner'], time_cost: 20, green: false, can_pack: false,
-                    tags: [], ingredients: []
+                    tags: [], ingredients: [], recipe: '', prep: ''
                 };
                 this.editor.dish = JSON.parse(JSON.stringify(base));
                 this.editor.tagsText = (this.editor.dish.tags || []).join(',');

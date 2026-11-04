@@ -15,8 +15,7 @@ const sourceSeed = "seed"
 
 // seedFile 种子文件的结构
 type seedFile struct {
-	Version int        `json:"version"`
-	Dishes  []seedDish `json:"dishes"`
+	Dishes []seedDish `json:"dishes"`
 }
 
 // seedDish 种子文件里的菜品，字段与 Dish 对齐但不含 ID/权重等运行态字段
@@ -30,6 +29,8 @@ type seedDish struct {
 	TimeCost       int          `json:"time_cost"`
 	CanPack        bool         `json:"can_pack"`
 	Green          bool         `json:"green"`
+	Recipe         string       `json:"recipe"`
+	Prep           string       `json:"prep"`
 }
 
 // 允许的主料与类型，种子数据必须落在这些枚举内
@@ -44,11 +45,9 @@ var (
 	validSlots = map[string]bool{SlotBreakfast: true, SlotLunch: true, SlotDinner: true}
 )
 
-// loadSeed 加载内置菜品
-// 判据是"表是否空"和"种子版本"，而不是种子文件在不在：
-//   - 空表：全量导入（首次启动）
-//   - 非空且版本未变：一条都不写，用户删过的内置菜重启不会回来
-//   - 非空但版本变了：按菜名增量补缺，已存在的一律不动（日后扩充菜库用）
+// loadSeed 加载内置菜品：只有空表（首次启动）才全量导入，
+// 之后一条都不写——用户删过的内置菜、改过的做法/备料重启都不会被动。
+// 建表语句已带齐所有列，种子文件也自带做法/备料。
 func (d *Database) loadSeed() error {
 	seed, err := parseSeed()
 	if err != nil {
@@ -59,29 +58,8 @@ func (d *Database) loadSeed() error {
 	if err := d.db.QueryRow("SELECT COUNT(*) FROM dishes").Scan(&count); err != nil {
 		return err
 	}
-
-	storedVersion := d.GetSetting("seed_version", "")
-	currentVersion := fmt.Sprintf("%d", seed.Version)
-
-	if count > 0 && storedVersion == currentVersion {
+	if count > 0 {
 		return nil
-	}
-
-	existing := map[string]bool{}
-	rows, err := d.db.Query("SELECT name FROM dishes")
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return err
-		}
-		existing[name] = true
-	}
-	if err := rows.Err(); err != nil {
-		return err
 	}
 
 	tx, err := d.db.Begin()
@@ -90,31 +68,22 @@ func (d *Database) loadSeed() error {
 	}
 	defer tx.Rollback()
 
-	added := 0
 	for _, sd := range seed.Dishes {
-		if existing[sd.Name] {
-			continue
-		}
 		if _, err := tx.Exec(`INSERT INTO dishes
-            (name, main_ingredient, kind, slots, ingredients, tags, time_cost, can_pack, green, blocked, weight, source, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,0,1.0,?,?)`,
+            (name, main_ingredient, kind, slots, ingredients, tags, time_cost, can_pack, green, blocked, weight, source, created_at, recipe, prep)
+            VALUES (?,?,?,?,?,?,?,?,?,0,1.0,?,?,?,?)`,
 			sd.Name, sd.MainIngredient, sd.Kind, marshalList(sd.Slots), marshalIngredients(sd.Ingredients),
 			marshalList(sd.Tags), sd.TimeCost, boolToInt(sd.CanPack), boolToInt(sd.Green),
-			sourceSeed, ""); err != nil {
+			sourceSeed, "", sd.Recipe, sd.Prep); err != nil {
 			return fmt.Errorf("导入内置菜品 %s 失败: %v", sd.Name, err)
 		}
-		added++
 	}
 
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	if err := d.SetSetting("seed_version", currentVersion); err != nil {
-		return err
-	}
-
-	if added > 0 {
-		fmt.Printf("已导入 %d 道内置菜品\n", added)
+	if len(seed.Dishes) > 0 {
+		fmt.Printf("已导入 %d 道内置菜品\n", len(seed.Dishes))
 	}
 	return nil
 }
@@ -158,6 +127,8 @@ func (d *Database) RestoreSeedDishes() (int, error) {
 			TimeCost:       sd.TimeCost,
 			CanPack:        sd.CanPack,
 			Green:          sd.Green,
+			Recipe:         sd.Recipe,
+			Prep:           sd.Prep,
 			Source:         sourceSeed,
 		}
 		if err := d.CreateDish(dish); err != nil {

@@ -61,10 +61,10 @@
   padding-right: 0.5rem;
 }
 
-/* 一行里并排好几个图标按钮时用窄版，给菜名留出位置 */
+/* 一行里并排的图标按钮：宽度也到 44px，触屏好点；菜名那侧现在只剩 👍👎 两个，放得下 */
 .tap-icon {
   min-height: 2.75rem;
-  min-width: 2.25rem;
+  min-width: 2.75rem;
   padding-left: 0.25rem;
   padding-right: 0.25rem;
 }
