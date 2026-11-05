@@ -68,7 +68,8 @@
                     <div class="pt-2">
                         <div class="text-sm font-semibold text-base-content/60 mb-1" x-text="slotLabel(slot)"></div>
                         <template x-for="item in itemsOf(day.index, slot)" :key="item.id">
-                            <div class="flex items-center gap-2 py-2 border-b border-base-200 last:border-0">
+                            <div class="flex items-center gap-2 py-2 border-b border-base-200 last:border-0 rounded-lg"
+                                 :class="editing && item.locked ? 'bg-primary/10' : ''">
                                 <div class="flex-1 min-w-0">
                                     <button class="text-left text-lg font-semibold truncate block w-full hover:text-primary"
                                             @click="openRecipe(item)" x-text="item.dish ? item.dish.name : '（空）'"></button>
@@ -76,19 +77,22 @@
                                         <span class="badge badge-sm" x-text="item.dish ? item.dish.main_ingredient : ''"></span>
                                         <span class="badge badge-sm badge-ghost" x-text="item.dish ? item.dish.time_cost + ' 分钟' : ''"></span>
                                         <span class="badge badge-sm badge-outline" x-show="item.dish && item.dish.green">绿叶菜</span>
-                                        <!-- 浏览态：锁定的格子只读标一下，重排时才不会困惑 -->
-                                        <span class="badge badge-sm badge-warning gap-1" x-show="!editing && item.locked">
-                                            <span class="app-emoji">🔒</span>已锁定
-                                        </span>
                                     </div>
-                                    <!-- 编辑态：独占一行，大按钮好点；浏览态整行收起 -->
-                                    <div x-show="editing" class="flex gap-2 mt-2">
-                                        <button class="btn btn-outline flex-1 tap text-sm" @click="reroll(item)">
+                                    <!-- 编辑态：三列等宽，文字永不换行；锁定按钮文案恒为"锁定"，
+                                         状态只靠实心/描边与图标表达，宽度不随状态变，前两个按钮也就不会抖动。
+                                         浏览态整行收起。 -->
+                                    <div x-show="editing" class="grid grid-cols-3 gap-1.5 mt-2">
+                                        <button class="btn btn-ghost tap text-sm whitespace-nowrap" @click="reroll(item)">
                                             <span class="app-emoji">↻</span>随机换
                                         </button>
-                                        <button class="btn btn-outline flex-1 tap text-sm" @click="openPicker(item)">指定换</button>
-                                        <button class="btn btn-outline flex-1 tap text-sm" @click="toggleLock(item)"
-                                                x-text="item.locked ? '🔓 解锁' : '🔒 锁定'"></button>
+                                        <button class="btn btn-ghost tap text-sm whitespace-nowrap" @click="openPicker(item)">指定换</button>
+                                        <button class="btn tap text-sm whitespace-nowrap"
+                                                :class="item.locked ? 'btn-primary' : 'btn-outline'"
+                                                :aria-pressed="item.locked.toString()"
+                                                :title="item.locked ? '已锁定，重排时保留；点此解锁' : '锁住这道菜，重排时保留'"
+                                                @click="toggleLock(item)">
+                                            <span class="app-emoji" x-text="item.locked ? '🔒' : '🔓'"></span>锁定
+                                        </button>
                                     </div>
                                 </div>
                                 <!-- 打分两态都在：吃完顺手点，与是否编辑无关 -->
