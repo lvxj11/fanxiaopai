@@ -5,7 +5,7 @@
  *
  * 改了 web/static/app.css 之后把下面的 CACHE 版本号 +1，否则用户看到的还是旧样式。
  */
-var CACHE = 'fanxiaopai-v2';
+var CACHE = 'fanxiaopai-v3';
 var SHELL = [
   '/menu',
   '/shopping',
