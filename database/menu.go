@@ -120,6 +120,13 @@ func (d *Database) SetMenuItemLocked(menuID int64, dayIndex int, slot string, se
 	return err
 }
 
+// SetAllMenuItemsLocked 一次锁定或解锁整周所有格子
+func (d *Database) SetAllMenuItemsLocked(menuID int64, locked bool) error {
+	_, err := d.db.Exec(`UPDATE menu_items SET locked=? WHERE menu_id=?`,
+		boolToInt(locked), menuID)
+	return err
+}
+
 // ListWeeks 列出已有菜单的周（倒序），用于历史回看与复用
 func (d *Database) ListWeeks() ([]string, error) {
 	rows, err := d.db.Query("SELECT week_start FROM menus ORDER BY week_start DESC")

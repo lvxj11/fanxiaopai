@@ -254,6 +254,32 @@ func (s *Server) apiLockItem(w http.ResponseWriter, r *http.Request) {
 	s.writeMenuResult(w, body.Week, 0, nil)
 }
 
+// apiLockAll 一次锁定或解锁整周所有格子：先全部锁定，再逐个解锁不满意的几道，重排时只换它们
+func (s *Server) apiLockAll(w http.ResponseWriter, r *http.Request) {
+	if !requirePOST(w, r) {
+		return
+	}
+
+	var body struct {
+		Week   string `json:"week"`
+		Locked bool   `json:"locked"`
+	}
+	if err := readJSON(w, r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "请求格式有误")
+		return
+	}
+
+	menuID, _, ok := s.loadMenu(w, body.Week)
+	if !ok {
+		return
+	}
+	if err := s.db.SetAllMenuItemsLocked(menuID, body.Locked); err != nil {
+		s.apiError(w, err, "保存菜单失败")
+		return
+	}
+	s.writeMenuResult(w, body.Week, 0, nil)
+}
+
 // ---------- 采购清单 ----------
 
 // apiShopping 取某周的采购清单

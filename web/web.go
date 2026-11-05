@@ -65,6 +65,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/menu/item/reroll", s.apiRerollItem)
 	mux.HandleFunc("/api/menu/item/replace", s.apiReplaceItem)
 	mux.HandleFunc("/api/menu/item/lock", s.apiLockItem)
+	mux.HandleFunc("/api/menu/lock-all", s.apiLockAll)
 	mux.HandleFunc("/api/shopping", s.apiShopping)
 	mux.HandleFunc("/api/shopping/checked", s.apiShoppingChecked)
 	mux.HandleFunc("/api/dishes", s.apiDishes)

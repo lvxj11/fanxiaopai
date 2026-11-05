@@ -30,16 +30,21 @@
                 </template>
             </select>
 
-            <!-- 生成/重排会改菜单，只在编辑态露出；浏览态保持只读 -->
+            <!-- 生成/重排会改菜单，只在编辑态露出；浏览态保持只读。
+                 合为一个按钮：始终按"锁定"重排——空菜单时自然全量生成，有菜单时只换没锁定的格子。
+                 想全盘重来点「全部解锁」再生成；只想换几道点「全部锁定」再把那几道解锁即可。 -->
             <div x-show="editing" class="flex flex-col gap-2">
-                <div class="flex gap-2">
-                    <button class="btn btn-primary flex-1" :disabled="busy" @click="generate(false)">
-                        <span x-show="busy" class="loading loading-spinner loading-sm"></span>
-                        <span x-text="menu && menu.items.length ? '重新生成' : '生成本周'"></span>
-                    </button>
+                <button class="btn btn-primary w-full" :disabled="busy" @click="generate()">
+                    <span x-show="busy" class="loading loading-spinner loading-sm"></span>
+                    <span x-text="menu && menu.items.length ? '重排未锁定' : '生成本周'"></span>
+                </button>
+                <div class="grid grid-cols-2 gap-2" x-show="menu && menu.items.length">
+                    <button class="btn btn-outline btn-sm" :disabled="busy" @click="lockAll(true)">全部锁定</button>
+                    <button class="btn btn-outline btn-sm" :disabled="busy" @click="lockAll(false)">全部解锁</button>
                 </div>
-                <button class="btn btn-outline w-full" :disabled="busy || !(menu && menu.items.length)"
-                        @click="generate(true)" title="只重排没锁定的格子">保留锁定重排</button>
+                <p class="text-xs text-base-content/50 leading-snug" x-show="menu && menu.items.length">
+                    重排只换没锁定的格子：先「全部锁定」，再把想换的几道解锁即可。
+                </p>
             </div>
             <a class="btn btn-ghost w-full" target="_blank" rel="noopener"
                :href="'/export?week=' + week" title="导出一份断网也能看的快照">导出离线快照</a>
@@ -116,7 +121,7 @@
     <div x-show="menu && menu.items.length === 0" class="card bg-base-100 shadow-sm rounded-2xl mt-4">
         <div class="card-body items-center text-center py-12">
             <p class="text-base text-base-content/60">这一周还没有菜单</p>
-            <button class="btn btn-primary mt-3" @click="generate(false)">生成一份</button>
+            <button class="btn btn-primary mt-3" @click="generate()">生成一份</button>
         </div>
     </div>
 
@@ -219,21 +224,34 @@
                 }
             },
 
-            async generate(keepLocked) {
-                if (!confirm(keepLocked ? '只重排没锁定的格子，确定？' : '会覆盖这一周已有的菜单，确定？')) return;
+            // 一个按钮搞定：始终 keep_locked:true。空菜单没有可保留的格子，等于全量生成；
+            // 有菜单时只重排没锁定的格子。全盘重来用「全部解锁」+本按钮，只换几道用「全部锁定」后解锁那几道。
+            async generate() {
+                var hasMenu = this.menu && this.menu.items.length;
+                if (hasMenu && !confirm('只重排没锁定的格子，锁定的会保留，确定？')) return;
                 this.busy = true;
                 this.msg = '';
                 try {
-                    var data = await post('/api/menu/generate', { week: this.week, keep_locked: keepLocked });
+                    var data = await post('/api/menu/generate', { week: this.week, keep_locked: true });
                     this.menu = data.menu || { items: [] };
                     this.weeks = data.weeks || [];
                     this.warnings = data.warnings || [];
-                    toast('菜单已生成');
+                    toast(hasMenu ? '菜单已重排' : '菜单已生成');
                 } catch (e) {
                     this.msg = e.message;
                 } finally {
                     this.busy = false;
                 }
+            },
+
+            async lockAll(locked) {
+                this.busy = true;
+                try {
+                    var data = await post('/api/menu/lock-all', { week: this.week, locked: locked });
+                    this.menu = data.menu;
+                    toast(locked ? '已全部锁定' : '已全部解锁');
+                } catch (e) { toast(e.message, 'error'); }
+                finally { this.busy = false; }
             },
 
             async shift(n) {
