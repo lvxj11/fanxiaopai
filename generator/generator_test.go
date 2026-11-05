@@ -256,3 +256,37 @@ func TestEmptyLibraryReturnsError(t *testing.T) {
 		t.Fatalf("空菜库应返回 ErrNoDishes，实际: %v", err)
 	}
 }
+
+// TestKeepLockedRerollHasNoDuplicateCells 覆盖「保留锁定重排」的真实入参：
+// existing 含整周所有格子，locked 只是其中一部分，且没有 Target。
+// 修复前未锁定格会被计入两次，保存时撞 menu_items 唯一约束。
+func TestKeepLockedRerollHasNoDuplicateCells(t *testing.T) {
+	library := bigLibrary()
+	first := generate(t, Request{MealSlots: defaultMealSlots(), Dishes: library})
+	existing := map[Cell]int64{}
+	for _, it := range first.Items {
+		existing[it.Cell] = it.DishID
+	}
+
+	lockedCell := first.Items[0].Cell
+	res := generate(t, Request{
+		MealSlots: defaultMealSlots(),
+		Dishes:    library,
+		Existing:  existing,
+		Locked:    map[Cell]bool{lockedCell: true},
+	})
+
+	seen := map[Cell]bool{}
+	for _, it := range res.Items {
+		if seen[it.Cell] {
+			t.Fatalf("格子在结果里重复: %v", it.Cell)
+		}
+		seen[it.Cell] = true
+		if it.Cell == lockedCell && it.DishID != existing[lockedCell] {
+			t.Fatalf("锁定的格子被换掉了: %v", it.Cell)
+		}
+	}
+	if len(res.Items) != len(first.Items) {
+		t.Fatalf("格子数不对: 期望 %d, 实际 %d", len(first.Items), len(res.Items))
+	}
+}

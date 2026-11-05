@@ -155,6 +155,21 @@ func (g *LocalWeighted) Generate(ctx context.Context, req Request) (*Result, err
 		return &Result{Items: keepExisting(req)}, nil
 	}
 
+	// existing 里凡是本次要重排的格子（cells），都交给下面的生成循环重新产出；
+	// 只把"不用重排的格子"留下，否则 tryPlan 会先原样计入、再生成一次，
+	// 同一格在结果里出现两条，保存时撞 menu_items 的唯一约束。
+	inCells := make(map[Cell]bool, len(cells))
+	for _, c := range cells {
+		inCells[c] = true
+	}
+	kept := make(map[Cell]int64, len(req.Existing))
+	for cell, dishID := range req.Existing {
+		if !inCells[cell] {
+			kept[cell] = dishID
+		}
+	}
+	req.Existing = kept
+
 	deadline := req.Now.Add(200 * time.Millisecond)
 	best := []Item{}
 
