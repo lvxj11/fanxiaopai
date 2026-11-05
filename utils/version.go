@@ -4,5 +4,5 @@ package utils
 const (
 	Name     = "饭小排"
 	FullName = "家常饭排班表"
-	Version  = "0.3.0"
+	Version  = "0.3.2"
 )
