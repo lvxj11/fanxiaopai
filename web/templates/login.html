@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>登录 - 饭小排</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link href="/static/app.css" rel="stylesheet" type="text/css" />
+    <script>
+        /* 独立页面，跟随系统深浅色，避免首次绘制闪白 */
+        (function () {
+            var root = document.documentElement;
+            var mq = window.matchMedia('(prefers-color-scheme: dark)');
+            try {
+                var t = localStorage.getItem('menu-theme');
+                root.dataset.theme = (t === 'light' || t === 'dark') ? t : (mq.matches ? 'dark' : 'light');
+            } catch (e) {
+                root.dataset.theme = mq.matches ? 'dark' : 'light';
+            }
+        })();
+    </script>
+</head>
+<body class="bg-base-200 min-h-screen flex items-center justify-center p-4">
+    <div class="card w-full max-w-sm bg-base-100 shadow-xl rounded-2xl">
+        <div class="card-body p-6 gap-4">
+            <div class="text-center">
+                <div class="text-4xl mb-2"><span class="app-emoji">🍚</span></div>
+                <h1 class="text-xl font-bold text-primary">饭小排</h1>
+                <p class="text-sm text-base-content/50">家常饭排班表</p>
+            </div>
+
+            <form id="login-form" class="flex flex-col gap-3">
+                <div class="w-full">
+                    <span class="block mb-1 font-semibold">用户名</span>
+                    <input id="username" type="text" autocomplete="username" required
+                           class="input w-full" placeholder="请输入用户名" />
+                </div>
+                <div class="w-full">
+                    <span class="block mb-1 font-semibold">密码</span>
+                    <input id="password" type="password" autocomplete="current-password" required
+                           class="input w-full" placeholder="请输入密码" />
+                </div>
+
+                <div id="err" class="alert alert-error text-sm py-2 hidden"></div>
+
+                <button id="submit" type="submit" class="btn btn-primary w-full">
+                    <span id="spinner" class="loading loading-spinner loading-sm hidden"></span>
+                    <span>登录</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var form = document.getElementById('login-form');
+            var err = document.getElementById('err');
+            var submit = document.getElementById('submit');
+            var spinner = document.getElementById('spinner');
+
+            function showErr(msg) {
+                err.textContent = msg;
+                err.classList.remove('hidden');
+            }
+            function busy(on) {
+                submit.disabled = on;
+                spinner.classList.toggle('hidden', !on);
+            }
+
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                err.classList.add('hidden');
+                busy(true);
+                try {
+                    var res = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: document.getElementById('username').value,
+                            password: document.getElementById('password').value
+                        })
+                    });
+                    var data = await res.json().catch(function () { return {}; });
+                    if (!res.ok) {
+                        if (data.setup) { location.href = '/setup'; return; }
+                        showErr(data.error || '登录失败（' + res.status + '）');
+                        return;
+                    }
+                    location.href = '/menu';
+                } catch (e2) {
+                    showErr('网络异常，请重试');
+                } finally {
+                    busy(false);
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

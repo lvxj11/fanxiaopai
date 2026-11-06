@@ -33,7 +33,7 @@
                     <span class="badge badge-sm" x-text="d.main_ingredient"></span>
                     <span class="badge badge-sm badge-ghost" x-text="d.kind"></span>
                     <span class="badge badge-sm badge-outline" x-text="d.time_cost + ' 分钟'"></span>
-                    <span class="badge badge-sm badge-outline" x-show="d.green">绿叶菜</span>
+                    <span class="badge badge-sm badge-success" x-show="d.green">绿叶菜</span>
                     <template x-for="t in d.tags"><span class="badge badge-sm badge-warning" x-text="t"></span></template>
                 </div>
                 <div class="text-sm text-base-content/50 mt-1" x-text="summary(d)"></div>
@@ -52,7 +52,19 @@
             </div>
         </template>
         <div x-show="dishes.length === 0" class="p-10 text-center text-base text-base-content/50">
-            没有符合条件的菜
+            <!-- 整个菜库空的（跳过了种子导入）：给出补菜引导，而不是干巴巴一句「没有符合条件的菜」 -->
+            <template x-if="!filter.q && !filter.kind && !filter.blocked">
+                <div class="flex flex-col items-center gap-2">
+                    <p>菜库还是空的，加几道菜就能开始排班</p>
+                    <p class="text-sm">
+                        点上面的「＋ 加菜」手动添加，或
+                        <a href="/settings" class="link link-primary">在设置里「补回内置菜品」一键导入 122 道</a>
+                    </p>
+                </div>
+            </template>
+            <template x-if="filter.q || filter.kind || filter.blocked">
+                <span>没有符合条件的菜</span>
+            </template>
         </div>
     </div>
 

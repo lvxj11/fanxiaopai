@@ -33,7 +33,10 @@ func main() {
 
 	log.Startup("日志级别: %s\n", config.LogLevel)
 	log.Startup("数据库路径: %s\n", config.DBPath)
-	log.Startup("Web 端口: %s\n", config.WebPort)
+	log.Startup("监听地址: %s:%s\n", config.WebHost, config.WebPort)
+	if config.Domain != "" {
+		log.Startup("公网域名: %s（登录 Cookie 启用 Secure）\n", config.Domain)
+	}
 
 	db, err := database.InitDB(config.DBPath)
 	if err != nil {
@@ -42,5 +45,5 @@ func main() {
 	}
 	defer db.Close()
 
-	web.NewServer(config, db).Start(config.WebPort)
+	web.NewServer(config, db).Start()
 }

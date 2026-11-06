@@ -14,3 +14,7 @@ fanxiaopai-*
 
 # 前端依赖（只在改样式时需要 npm install，产物 app.css 是提交的）
 node_modules/
+
+# 运行时生成的配置（含鉴权相关设置，不入库），只跟踪示例文件
+config/*.ini
+!config/config.ini.example

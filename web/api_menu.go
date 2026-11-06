@@ -84,7 +84,6 @@ func (s *Server) apiGenerateMenu(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := s.generator.Generate(r.Context(), generator.Request{
-		WeekStart: week,
 		MealSlots: s.mealSlotsByDay(),
 		Dishes:    dishes,
 		AvoidTags: s.avoidTags(),
@@ -172,7 +171,6 @@ func (s *Server) apiRerollItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := s.generator.Generate(r.Context(), generator.Request{
-		WeekStart: body.Week,
 		MealSlots: s.mealSlotsByDay(),
 		Dishes:    dishes,
 		AvoidTags: s.avoidTags(),

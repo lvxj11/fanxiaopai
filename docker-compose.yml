@@ -1,13 +1,18 @@
-version: '3.8'
-
 services:
   fanxiaopai:
     build: .
     ports:
-      - "8080:8080"
+      - "${WEB_PORT:-8080}:${WEB_PORT:-8080}"
     volumes:
-      - ./data:/app/data  # 数据库和日志都在这里，备份只要拷这个目录
-    user: "1000:1000"  # 与容器内 appuser 保持一致，避免数据目录权限问题
+      - ./data:/app/data    # 数据库和日志，备份拷这个目录
+      - ./config:/app/config # 配置文件独立目录，不与数据混用
+    user: "1000:1000"  # 与容器内 appuser 保持一致，避免目录权限问题
     environment:
       - TZ=Asia/Shanghai
+      - LOG_LEVEL=${LOG_LEVEL:-warn}
+      - WEB_HOST=${WEB_HOST:-0.0.0.0}
+      - WEB_PORT=${WEB_PORT:-8080}
+      - DOMAIN=${DOMAIN:-}
+      - SESSION_TTL=${SESSION_TTL:-168}
+      - DB_PATH=${DB_PATH:-./data/menu.db}
     restart: unless-stopped

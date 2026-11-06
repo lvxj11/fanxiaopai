@@ -4,13 +4,13 @@ import (
 	"compress/gzip"
 	"embed"
 	"encoding/json"
-	"fmt"
 	"html/template"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
-	"fanxiaopai/ai"
 	"fanxiaopai/database"
 	"fanxiaopai/generator"
 	"fanxiaopai/utils"
@@ -36,7 +36,7 @@ type Server struct {
 	config    *utils.Config
 	db        *database.Database
 	generator generator.Generator
-	ai        ai.Provider
+	setupMu   sync.Mutex // 串行化首次设置，防并发双初始化
 }
 
 // NewServer 创建服务器实例
@@ -45,7 +45,6 @@ func NewServer(config *utils.Config, db *database.Database) *Server {
 		config:    config,
 		db:        db,
 		generator: generator.NewLocalWeighted(nil),
-		ai:        ai.NewNoopProvider(),
 	}
 }
 
@@ -58,6 +57,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/dishes", s.showDishes)
 	mux.HandleFunc("/shopping", s.showShopping)
 	mux.HandleFunc("/settings", s.showSettings)
+	mux.HandleFunc("/login", s.showLogin)
+	mux.HandleFunc("/setup", s.showSetup)
 
 	mux.HandleFunc("/api/menu", s.apiMenu)
 	mux.HandleFunc("/api/menu/generate", s.apiGenerateMenu)
@@ -72,26 +73,30 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/dishes/", s.apiDish)
 	mux.HandleFunc("/api/settings/meal-slots", s.apiMealSlots)
 	mux.HandleFunc("/api/settings/avoid-tags", s.apiAvoidTags)
-	mux.HandleFunc("/api/ai/suggest", s.apiAISuggest)
 	mux.HandleFunc("/api/health", s.apiHealth)
+	mux.HandleFunc("/api/login", s.apiLogin)
+	mux.HandleFunc("/api/logout", s.apiLogout)
+	mux.HandleFunc("/api/setup", s.apiSetup)
 	mux.HandleFunc("/favicon.svg", s.serveFavicon)
 	mux.HandleFunc("/export", s.exportSnapshot)
 
 	// 静态资源全部编译进二进制，随程序分发，断网也能显示
 	mux.Handle("/static/", s.serveStatic())
 
-	return gzipMiddleware(mux)
+	// 鉴权在最外层：登录/设置/静态/健康检查放行，其余需有效会话
+	return s.authMiddleware(gzipMiddleware(mux))
 }
 
 // Start 启动服务器
-func (s *Server) Start(port string) {
+func (s *Server) Start() {
 	log := utils.GetLogger()
-	log.Startup("服务器启动在端口 %s\n", port)
+	addr := net.JoinHostPort(s.config.WebHost, s.config.WebPort)
+	log.Startup("服务器启动在 %s\n", addr)
 
 	// 启动信息打完就不再往控制台刷日志
 	log.SetConsoleOutput(false)
 
-	if err := http.ListenAndServe(":"+port, s.Handler()); err != nil {
+	if err := http.ListenAndServe(addr, s.Handler()); err != nil {
 		log.SetConsoleOutput(true)
 		log.Error("启动服务器失败: %v\n", err)
 	}
@@ -135,12 +140,10 @@ func (s *Server) renderPage(w http.ResponseWriter, title, currentPage, contentTe
 		Title       string
 		CurrentPage string
 		Version     string
-		Today       string
 	}{
 		Title:       title,
 		CurrentPage: currentPage,
 		Version:     utils.Version,
-		Today:       time.Now().Format("2006-01-02"),
 	}
 
 	if err := tmpl.Execute(w, data); err != nil {
@@ -230,7 +233,7 @@ func (s *Server) apiError(w http.ResponseWriter, err error, fallback string) {
 	if err == nil {
 		return
 	}
-	if err == generator.ErrNoDishes || err == ai.ErrNotConfigured {
+	if err == generator.ErrNoDishes {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -253,28 +256,6 @@ func (s *Server) apiHealth(w http.ResponseWriter, r *http.Request) {
 		"status":  "ok",
 		"version": utils.Version,
 	})
-}
-
-// apiAISuggest AI 换新鲜的入口。v1 未接入任何服务，明确返回未配置
-func (s *Server) apiAISuggest(w http.ResponseWriter, r *http.Request) {
-	if !requirePOST(w, r) {
-		return
-	}
-	var req ai.SuggestRequest
-	if err := readJSON(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "请求格式有误")
-		return
-	}
-	if req.Count <= 0 {
-		req.Count = 3
-	}
-
-	dishes, err := s.ai.Suggest(r.Context(), req)
-	if err != nil {
-		writeError(w, http.StatusNotImplemented, fmt.Sprintf("AI 换新鲜暂不可用：%v", err))
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"dishes": dishes})
 }
 
 // gzipResponseWriter 把响应体接到 gzip.Writer 上

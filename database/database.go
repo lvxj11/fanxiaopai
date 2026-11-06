@@ -16,7 +16,8 @@ type Database struct {
 	db *sql.DB
 }
 
-// InitDB 打开数据库并完成建表与种子加载
+// InitDB 打开数据库并完成建表与结构迁移。
+// 内置菜品的导入不再由启动触发，改由首次 /setup 时用户选择是否导入。
 func InitDB(path string) (*Database, error) {
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -29,7 +30,7 @@ func InitDB(path string) (*Database, error) {
 		db.Close()
 		return nil, err
 	}
-	if err := d.loadSeed(); err != nil {
+	if err := d.migrate(); err != nil {
 		db.Close()
 		return nil, err
 	}

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>首次设置 - 饭小排</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link href="/static/app.css" rel="stylesheet" type="text/css" />
+    <script>
+        /* 独立页面，跟随系统深浅色，避免首次绘制闪白 */
+        (function () {
+            var root = document.documentElement;
+            var mq = window.matchMedia('(prefers-color-scheme: dark)');
+            try {
+                var t = localStorage.getItem('menu-theme');
+                root.dataset.theme = (t === 'light' || t === 'dark') ? t : (mq.matches ? 'dark' : 'light');
+            } catch (e) {
+                root.dataset.theme = mq.matches ? 'dark' : 'light';
+            }
+        })();
+    </script>
+</head>
+<body class="bg-base-200 min-h-screen flex items-center justify-center p-4">
+    <div class="card w-full max-w-sm bg-base-100 shadow-xl rounded-2xl">
+        <div class="card-body p-6 gap-4">
+            <div class="text-center">
+                <div class="text-4xl mb-2"><span class="app-emoji">🍚</span></div>
+                <h1 class="text-xl font-bold text-primary">首次设置</h1>
+                <p class="text-sm text-base-content/50">设置管理员账号，之后用它登录</p>
+            </div>
+
+            <form id="setup-form" class="flex flex-col gap-3">
+                <div class="w-full">
+                    <span class="block mb-1 font-semibold">用户名</span>
+                    <input id="username" type="text" autocomplete="username" required
+                           class="input w-full" placeholder="请输入用户名" />
+                </div>
+                <div class="w-full">
+                    <span class="block mb-1 font-semibold">密码</span>
+                    <input id="password" type="password" autocomplete="new-password" required
+                           class="input w-full" placeholder="请输入密码" />
+                </div>
+                <div class="w-full">
+                    <span class="block mb-1 font-semibold">确认密码</span>
+                    <input id="password2" type="password" autocomplete="new-password" required
+                           class="input w-full" placeholder="再次输入密码" />
+                </div>
+
+                <label class="label cursor-pointer gap-3 justify-start py-1">
+                    <input id="import-seed" type="checkbox" class="checkbox checkbox-primary" checked />
+                    <span class="text-sm">导入 122 道内置菜（可直接使用，之后能在菜库里改）</span>
+                </label>
+
+                <div id="err" class="alert alert-error text-sm py-2 hidden"></div>
+
+                <button id="submit" type="submit" class="btn btn-primary w-full">
+                    <span id="spinner" class="loading loading-spinner loading-sm hidden"></span>
+                    <span>完成设置</span>
+                </button>
+                <p class="text-xs text-base-content/50 leading-snug">
+                    不导入也可以，之后在「设置」里点「补回内置菜品」随时添加。
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var form = document.getElementById('setup-form');
+            var err = document.getElementById('err');
+            var submit = document.getElementById('submit');
+            var spinner = document.getElementById('spinner');
+
+            function showErr(msg) {
+                err.textContent = msg;
+                err.classList.remove('hidden');
+            }
+            function busy(on) {
+                submit.disabled = on;
+                spinner.classList.toggle('hidden', !on);
+            }
+
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                err.classList.add('hidden');
+                var pw = document.getElementById('password').value;
+                var pw2 = document.getElementById('password2').value;
+                if (pw !== pw2) { showErr('两次输入的密码不一致'); return; }
+                if (!pw) { showErr('请填写密码'); return; }
+
+                busy(true);
+                try {
+                    var res = await fetch('/api/setup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: document.getElementById('username').value,
+                            password: pw,
+                            import_seed: document.getElementById('import-seed').checked
+                        })
+                    });
+                    var data = await res.json().catch(function () { return {}; });
+                    if (!res.ok) {
+                        showErr(data.error || '设置失败（' + res.status + '）');
+                        return;
+                    }
+                    location.href = '/menu';
+                } catch (e2) {
+                    showErr('网络异常，请重试');
+                } finally {
+                    busy(false);
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

@@ -19,3 +19,7 @@ data/
 fanxiaopai
 fanxiaopai-*
 dist/
+
+# 运行时生成的配置不要被 COPY 进镜像，只保留示例文件
+config/*.ini
+!config/config.ini.example

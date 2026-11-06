@@ -22,7 +22,6 @@ type Cell struct {
 
 // Request 一次生成请求
 type Request struct {
-	WeekStart string           // 周一的日期，仅用于计算"最近做过"
 	MealSlots map[int][]string // day_index -> 该天要排的餐次
 	Dishes    []database.Dish  // 候选菜（生成器自行过滤黑名单与忌口）
 	AvoidTags []string         // 忌口标签

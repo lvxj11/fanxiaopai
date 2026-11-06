@@ -45,26 +45,27 @@ var (
 	validSlots = map[string]bool{SlotBreakfast: true, SlotLunch: true, SlotDinner: true}
 )
 
-// loadSeed 加载内置菜品：只有空表（首次启动）才全量导入，
-// 之后一条都不写——用户删过的内置菜、改过的做法/备料重启都不会被动。
-// 建表语句已带齐所有列，种子文件也自带做法/备料。
-func (d *Database) loadSeed() error {
+// ImportSeedDishes 导入内置菜品，返回实际导入条数。
+// 由首次 /setup 在用户勾选「导入内置菜」时调用；启动流程不再自动导入。
+// 幂等：只有空表才全量导入，之后一条都不写——用户删过的内置菜、改过的做法/备料都不会被动。
+// 现存开发库已有 122 道菜，调用它会安全地成为 no-op。
+func (d *Database) ImportSeedDishes() (int, error) {
 	seed, err := parseSeed()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	var count int
 	if err := d.db.QueryRow("SELECT COUNT(*) FROM dishes").Scan(&count); err != nil {
-		return err
+		return 0, err
 	}
 	if count > 0 {
-		return nil
+		return 0, nil
 	}
 
 	tx, err := d.db.Begin()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer tx.Rollback()
 
@@ -75,17 +76,14 @@ func (d *Database) loadSeed() error {
 			sd.Name, sd.MainIngredient, sd.Kind, marshalList(sd.Slots), marshalIngredients(sd.Ingredients),
 			marshalList(sd.Tags), sd.TimeCost, boolToInt(sd.CanPack), boolToInt(sd.Green),
 			sourceSeed, "", sd.Recipe, sd.Prep); err != nil {
-			return fmt.Errorf("导入内置菜品 %s 失败: %v", sd.Name, err)
+			return 0, fmt.Errorf("导入内置菜品 %s 失败: %v", sd.Name, err)
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return err
+		return 0, err
 	}
-	if len(seed.Dishes) > 0 {
-		fmt.Printf("已导入 %d 道内置菜品\n", len(seed.Dishes))
-	}
-	return nil
+	return len(seed.Dishes), nil
 }
 
 // RestoreSeedDishes 显式补回内置菜品：只补用户库里没有的，已存在的字段一律不动

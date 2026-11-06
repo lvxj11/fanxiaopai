@@ -56,7 +56,6 @@ type exportGroup struct {
 }
 
 type exportData struct {
-	Title      string
 	RangeLabel string
 	Week       string
 	HasMenu    bool
@@ -87,7 +86,6 @@ func (s *Server) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 
 	week := weekParam(r)
 	data := exportData{
-		Title:      "离线快照",
 		Week:       week,
 		RangeLabel: week + " 那一周",
 		Version:    utils.Version,

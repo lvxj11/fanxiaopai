@@ -42,6 +42,11 @@
                     headers: { 'Content-Type': 'application/json' }
                 }, options || {}));
                 var data = await res.json().catch(function () { return {}; });
+                if (res.status === 401) {
+                    /* 会话过期/未初始化：跳到设置页或登录页，别把 401 当普通错误弹 toast */
+                    location.href = data.setup ? '/setup' : '/login';
+                    throw new Error(data.error || '请先登录');
+                }
                 if (!res.ok) throw new Error(data.error || ('请求失败（' + res.status + '）'));
                 return data;
             };
@@ -50,6 +55,16 @@
             };
             window.put = function (path, body) {
                 return api(path, { method: 'PUT', body: JSON.stringify(body || {}) });
+            };
+            /* 退出登录：清掉会话 Cookie，并通知 Service Worker 清掉缓存里的私有数据 */
+            window.logout = async function () {
+                try { await post('/api/logout', {}); } catch (e) {}
+                try {
+                    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.controller.postMessage({ type: 'logout' });
+                    }
+                } catch (e) {}
+                location.href = '/login';
             };
         })();
     </script>
@@ -76,6 +91,9 @@
             <div class="navbar-end gap-1">
                 <button class="btn btn-ghost tap" onclick="__toggleTheme()" title="切换深浅色" aria-label="切换深浅色">
                     <span class="app-emoji">🌓</span>
+                </button>
+                <button class="btn btn-ghost tap" onclick="logout()" title="退出登录" aria-label="退出登录">
+                    <span class="app-emoji">🚪</span>
                 </button>
             </div>
         </div>
@@ -115,7 +133,7 @@
            等你用公网域名把反代配好，离线功能自动生效，不用再改代码。 */
         if (isSecureContext && 'serviceWorker' in navigator) {
             window.addEventListener('load', function () {
-                navigator.serviceWorker.register('/static/sw.js').catch(function () {});
+                navigator.serviceWorker.register('/static/sw.js', { scope: '/' }).catch(function () {});
             });
         }
     </script>

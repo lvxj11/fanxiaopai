@@ -81,7 +81,7 @@
                                     <div class="flex flex-wrap gap-1 mt-1 items-center">
                                         <span class="badge badge-sm" x-text="item.dish ? item.dish.main_ingredient : ''"></span>
                                         <span class="badge badge-sm badge-ghost" x-text="item.dish ? item.dish.time_cost + ' 分钟' : ''"></span>
-                                        <span class="badge badge-sm badge-outline" x-show="item.dish && item.dish.green">绿叶菜</span>
+                                        <span class="badge badge-sm badge-success" x-show="item.dish && item.dish.green">绿叶菜</span>
                                     </div>
                                     <!-- 编辑态：三列等宽，文字永不换行；锁定按钮文案恒为"锁定"，
                                          状态只靠实心/描边与图标表达，宽度不随状态变，前两个按钮也就不会抖动。
@@ -122,6 +122,13 @@
         <div class="card-body items-center text-center py-12">
             <p class="text-base text-base-content/60">这一周还没有菜单</p>
             <button class="btn btn-primary mt-3" @click="generate()">生成一份</button>
+            <!-- 跳过种子导入时空菜库无法生成，给出补菜的引导 -->
+            <div class="text-sm text-base-content/50 mt-5 leading-relaxed">
+                <p x-show="msg.indexOf('菜品') !== -1">菜库还是空的，先加几道菜才能排班：</p>
+                <a href="/dishes" class="link link-primary">去菜库添加</a>
+                <span class="px-1">·</span>
+                <a href="/settings" class="link link-primary">在设置里「补回内置菜品」一键导入 122 道</a>
+            </div>
         </div>
     </div>
 

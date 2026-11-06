@@ -14,12 +14,13 @@ WORKDIR /app
 
 COPY --from=builder /app/fanxiaopai /app/
 
-# 设置时区、创建数据目录和非 root 用户
+# 设置时区、创建数据和配置目录、非 root 用户
+# config/ 也要可写：首次启动会生成 config.ini，容器以 UID 1000 运行
 RUN apk add --no-cache tzdata && \
-    mkdir -p /app/data && \
-    chmod 755 /app/data && \
+    mkdir -p /app/data /app/config && \
+    chmod 755 /app/data /app/config && \
     adduser -D -u 1000 appuser && \
-    chown -R appuser:appuser /app/data
+    chown -R appuser:appuser /app/data /app/config
 
 ENV TZ=Asia/Shanghai
 

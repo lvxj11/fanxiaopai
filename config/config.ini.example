@@ -1,0 +1,18 @@
+# 饭小排（家常饭排班表）配置文件示例
+# 复制/改名为 config.ini 后按需修改；环境变量优先级高于本文件：
+#   LOG_LEVEL / WEB_HOST / WEB_PORT / DOMAIN / SESSION_TTL / DB_PATH / CONFIG_DIR
+
+[server]
+# 日志级别：debug, info, warn, error
+log_level = warn
+# 监听地址，0.0.0.0 表示全网卡；只在本机监听可填 127.0.0.1
+web_host = 0.0.0.0
+# Web 服务器端口号
+web_port = 8080
+# 公网域名（不含协议）。留空 = 局域网/本机，登录 Cookie 不强制 Secure；
+# 填写后登录 Cookie 加 Secure，并把 https://<domain> 加入来源白名单。
+domain =
+# 登录会话有效期（小时）
+session_ttl = 168
+# SQLite 数据库路径（容器内保持默认即可，由 docker-compose 挂载 data/ 卷）
+db_path = ./data/menu.db
